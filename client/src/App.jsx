@@ -13,7 +13,7 @@ import {
   ZapIcon,
 } from './icons'
 import { AI_LABELS, useLockIn } from './lockin/useLockIn'
-import SlidePanel from './slides/SlidePanel'
+import { SlidePanel } from './slides'
 import './App.css'
 
 const AI_ICONS = { catchup: ZapIcon, example: LightbulbIcon, check: HelpIcon, why: TargetIcon }

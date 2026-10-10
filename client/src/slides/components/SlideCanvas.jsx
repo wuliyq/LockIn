@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { pdfjsLib } from './pdfSetup'
+import { pdfjsLib } from '../pdf/pdfSetup'
 import './SlideCanvas.css'
 
 /**

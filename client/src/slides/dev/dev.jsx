@@ -2,7 +2,7 @@
 // touching App.jsx (Role 1's layout). Open http://localhost:5173/slides-dev.html
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import '../index.css'
+import '../../index.css'
 import DevHarness from './DevHarness'
 
 createRoot(document.getElementById('root')).render(
