@@ -8,7 +8,13 @@
  *   import { ElevenLabsSTT } from './stt.js';
  *
  *   const stt = new ElevenLabsSTT({
- *     apiKey: 'your-key',
+ *     getToken: async () => {
+ *       const response = await fetch('http://localhost:3001/api/stt-token', {
+ *         method: 'POST',
+ *       });
+ *       const { token } = await response.json();
+ *       return token;
+ *     },
  *     onTranscript: ({ committed, partial, fullText }) => { ... },
  *     onStatusChange: (status, detail) => { ... },
  *     onVolume: (0..1) => { ... },
@@ -24,7 +30,7 @@
 export class ElevenLabsSTT {
   constructor(options = {}) {
     // Config
-    this.apiKey          = options.apiKey          || '';
+    this.getToken        = options.getToken        || null;
     this.deviceId        = options.deviceId        || '';
     this.modelId         = options.modelId         || 'scribe_v2_realtime';
     this.commitStrategy  = options.commitStrategy  || 'vad';
@@ -80,30 +86,6 @@ export class ElevenLabsSTT {
       .map((d, i) => ({ deviceId: d.deviceId, label: d.label || `Microphone ${i + 1}` }));
   }
 
-  /**
-   * Exchanges your long-lived API key for a short-lived single-use token.
-   * ElevenLabs tokens expire after 15 min and are consumed on first use.
-   */
-  static async fetchToken(apiKey) {
-    if (!apiKey) throw new Error('API key is required.');
-    const res = await fetch(
-      'https://api.elevenlabs.io/v1/single-use-token/realtime_scribe',
-      {
-        method: 'POST',
-        headers: { 'xi-api-key': apiKey.trim(), 'Content-Type': 'application/json' },
-        body: '{}',
-      }
-    );
-    if (!res.ok) {
-      let msg = `Token request failed (HTTP ${res.status})`;
-      try { const j = await res.json(); if (j.detail?.message) msg = j.detail.message; } catch {}
-      throw new Error(msg);
-    }
-    const { token } = await res.json();
-    if (!token) throw new Error('No token in ElevenLabs response.');
-    return token;
-  }
-
   // ─── Public API ────────────────────────────────────────────────────────────
 
   /**
@@ -112,18 +94,19 @@ export class ElevenLabsSTT {
   async start(opts = {}) {
     if (this.isRecording) { console.warn('ElevenLabsSTT: already recording'); return; }
 
-    if (opts.apiKey)  this.apiKey  = opts.apiKey;
+    if (opts.getToken) this.getToken = opts.getToken;
     if (opts.deviceId !== undefined) this.deviceId = opts.deviceId;
     if (typeof opts.autoFlushMs === 'number') this.autoFlushMs = opts.autoFlushMs;
 
-    if (!this.apiKey) {
-      const e = new Error('ElevenLabs API key is required.');
+    if (!this.getToken) {
+      const e = new Error('A function that fetches a temporary transcription token is required.');
       this._emitError(e); throw e;
     }
 
     try {
       this._setStatus('connecting', 'Getting connection token…');
-      const token = await ElevenLabsSTT.fetchToken(this.apiKey);
+      const token = await this.getToken();
+      if (!token) throw new Error('No transcription token was returned.');
 
       this._setStatus('connecting', 'Opening WebSocket…');
       await this._openWebSocket(token);

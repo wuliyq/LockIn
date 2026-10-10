@@ -26,6 +26,33 @@ export function addFlag(sessionId, flag) {
     return savedFlag;
 }
 
+export function addTranscriptSegment(sessionId, segment) {
+    if (!segment.text?.trim()) {
+        throw new Error("Transcript segment text is required.");
+    }
+
+    const session = getOrCreateSession(sessionId);
+    const savedSegment = {
+        id: crypto.randomUUID(),
+        timestamp: new Date().toISOString(),
+        ...segment,
+        text: segment.text.trim(),
+    };
+
+    session.transcriptSegments.push(savedSegment);
+    return savedSegment;
+}
+
+export function getRecentTranscript(sessionId, slideNumber, maxSegments = 4) {
+    const session = getOrCreateSession(sessionId);
+
+    return session.transcriptSegments
+        .filter((segment) => segment.slideNumber === slideNumber)
+        .slice(-maxSegments)
+        .map((segment) => segment.text)
+        .join(" ");
+}
+
 export function getDashboardData(sessionId) {
     const session = getOrCreateSession(sessionId);
 
@@ -41,5 +68,4 @@ export function getDashboardData(sessionId) {
         flags: session.flags,
     };
 }
-
 
