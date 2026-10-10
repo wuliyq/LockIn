@@ -1,0 +1,25 @@
+/* Scoped by the .slide-panel prefix. Fills its container; the layout owns sizing. */
+.slide-panel {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  overflow: hidden;
+}
+
+.slide-panel__upload {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.875rem;
+}
+
+.slide-panel__status {
+  margin: 0;
+  font-size: 0.8125rem;
+  opacity: 0.8;
+  overflow-wrap: anywhere;
+}
