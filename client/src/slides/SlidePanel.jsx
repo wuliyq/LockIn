@@ -4,6 +4,9 @@ import { closePdf, loadPdf } from './loadPdf'
 import SlideCanvas from './SlideCanvas'
 import './SlidePanel.css'
 
+// Upload progress logs are for development; production builds stay quiet.
+const debugLog = (...args) => import.meta.env.DEV && console.log(...args)
+
 /**
  * Top-left panel: PDF upload (slides or prelecture handout), the current page with
  * prev/next navigation, and text extraction. Fills whatever box the layout gives it.
@@ -17,8 +20,10 @@ import './SlidePanel.css'
  *
  * @param {Object} props
  * @param {number} [props.index]  0-based page to show (controlled mode)
- * @param {(deck: import('./stubDeckContext').DeckContext) => void} [props.onDeckReady]
- *   Called once per upload with the extracted DeckContext.
+ * @param {(deck: import('./stubDeckContext').DeckContext | null) => void} [props.onDeckReady]
+ *   Called with null the moment a new PDF opens (its text is still being read, so
+ *   the previous deck no longer matches what's on screen), then once more with the
+ *   extracted DeckContext. A failed upload calls neither; the current deck stays.
  * @param {(index: number, timestampMs: number) => void} [props.onSlideChange]
  *   Called on every navigation and with 0 when a new PDF opens; index is 0-based,
  *   timestamp is Date.now().
@@ -57,18 +62,20 @@ export default function SlidePanel({ index: controlledIndex, onDeckReady, onSlid
     setOpening(file.name)
     setError(null)
 
+    const isStale = () => loadId !== loadIdRef.current
+
     let doc
     try {
       doc = await loadPdf(file)
     } catch (err) {
-      if (loadId !== loadIdRef.current) return
+      if (isStale()) return
       // The current PDF (and its extraction, if still running) stays as it was.
       console.error('[slides] failed to load PDF', err)
       setOpening(null)
       setError({ filename: file.name, message: err?.message || 'Unknown error' })
       return
     }
-    if (loadId !== loadIdRef.current) {
+    if (isStale()) {
       closePdf(doc)
       return
     }
@@ -79,6 +86,9 @@ export default function SlidePanel({ index: controlledIndex, onDeckReady, onSlid
     setPdf({ doc, filename: file.name })
     setDeck(null)
     setOpening(null)
+    // The old deck no longer matches the slide on screen; don't let it be used
+    // (e.g. as slideText) while the new one is read.
+    onDeckReady?.(null)
     // New PDF starts on page 1, and so do its notes.
     setOwnIndex(0)
     onSlideChange?.(0, Date.now())
@@ -100,7 +110,7 @@ export default function SlidePanel({ index: controlledIndex, onDeckReady, onSlid
     if (isReplaced()) return
 
     setDeck(nextDeck)
-    console.log(`[slides] ${file.name}: ${nextDeck.slideCount} pages, ${nextDeck.terms.length} terms`)
+    debugLog(`[slides] ${file.name}: ${nextDeck.slideCount} pages, ${nextDeck.terms.length} terms`)
     onDeckReady?.(nextDeck)
   }
 
@@ -119,6 +129,7 @@ export default function SlidePanel({ index: controlledIndex, onDeckReady, onSlid
   // Arrow keys only while the panel itself has focus (e.g. after clicking the slide),
   // so arrows in the notes editor never change the slide.
   function handleKeyDown(e) {
+    if (e.metaKey || e.ctrlKey || e.altKey) return
     const step = { ArrowLeft: -1, PageUp: -1, ArrowRight: 1, PageDown: 1 }[e.key]
     if (step) goTo(index + step)
     else if (e.key === 'Home') goTo(0)
@@ -162,7 +173,7 @@ export default function SlidePanel({ index: controlledIndex, onDeckReady, onSlid
   else status = `${deck.filename}: ${plural(deck.slideCount, 'page')}, ${plural(deck.terms.length, 'term')}`
 
   return (
-    <div className="slide-panel" tabIndex={0} onKeyDown={handleKeyDown} aria-label="Slides">
+    <div className="slide-panel" role="region" aria-label="Slides" tabIndex={0} onKeyDown={handleKeyDown}>
       {fileInput}
       <div className="slide-panel__bar">
         <p className="slide-panel__status" role="status" title={status}>
@@ -190,7 +201,7 @@ export default function SlidePanel({ index: controlledIndex, onDeckReady, onSlid
           ‹
         </button>
         {/* Shown 1-based; index stays 0-based everywhere else. */}
-        <span className="slide-panel__counter">
+        <span className="slide-panel__counter" aria-live="polite">
           {index + 1} / {pageCount}
         </span>
         <button

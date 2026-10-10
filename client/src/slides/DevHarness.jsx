@@ -33,10 +33,13 @@ export default function DevHarness() {
   const [notes, setNotes] = useState({})
   const [events, setEvents] = useState([])
 
+  // While the new deck is read (deck === null) notes fall back to a shared key;
+  // in the real app, key by something known at open time if that window matters.
   const notesKey = `${deck?.filename ?? 'no-pdf'}#${slideIndex}`
 
   function handleDeckReady(nextDeck) {
-    console.log('[dev] onDeckReady', nextDeck)
+    // null = a new PDF just opened and its text is still being read.
+    console.log('[dev] onDeckReady', nextDeck ? nextDeck.filename : 'null (reading new PDF)', nextDeck)
     setDeck(nextDeck)
   }
 

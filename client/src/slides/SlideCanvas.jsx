@@ -18,6 +18,16 @@ export default function SlideCanvas({ doc, index }) {
   // renders into one canvas at once, so each new render waits for this to stop.
   const taskRef = useRef(null)
   const [size, setSize] = useState(null) // { width, height } of the container in CSS px
+  const [dpr, setDpr] = useState(() => window.devicePixelRatio || 1)
+
+  // Moving the window to a screen with a different pixel density doesn't resize the
+  // box, so watch the density itself and redraw at the new sharpness.
+  useEffect(() => {
+    const query = window.matchMedia(`(resolution: ${dpr}dppx)`)
+    const update = () => setDpr(window.devicePixelRatio || 1)
+    query.addEventListener('change', update)
+    return () => query.removeEventListener('change', update)
+  }, [dpr])
 
   useEffect(() => {
     const box = boxRef.current
@@ -50,7 +60,6 @@ export default function SlideCanvas({ doc, index }) {
 
       const natural = page.getViewport({ scale: 1 })
       const fit = Math.min(size.width / natural.width, size.height / natural.height)
-      const dpr = window.devicePixelRatio || 1
       // Draw at device pixels, display at CSS pixels: sharp instead of a blurry stretch.
       const viewport = page.getViewport({ scale: fit * dpr })
       const canvas = canvasRef.current
@@ -79,7 +88,7 @@ export default function SlideCanvas({ doc, index }) {
       cancelled = true
       task?.cancel()
     }
-  }, [doc, index, size])
+  }, [doc, index, size, dpr])
 
   return (
     <div className="slide-canvas" ref={boxRef}>
