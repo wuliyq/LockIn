@@ -40,3 +40,31 @@ export function buildConfusionPrompt({
     Return only the helpful explanation for the student.
     `;
 }
+
+export function buildCatchUpPrompt({
+    recentTranscript,
+    slideText = "",
+}) {
+    return `
+    You are LockIn, a supportive lecture co-pilot.
+
+    A student clicked "Catch me up" after losing focus.
+    Summarize only the most recent portion of the lecture transcript.
+
+    Rules:
+    - Use the transcript as the main source of truth.
+    - Use the current slide only to clarify context.
+    - Do not invent information missing from the transcript.
+    - Return examctly 2 or 3 short bullet points.
+    - Each bullet must be useful for helping the student rejoin the lecture.
+    - Keep the total response under 70 words.
+
+    Current slide text:
+    """${slideText || "No slide text was provided."}"""
+
+    Recent lecture transcript:
+    """${recentTranscript}"""
+
+    Return only the bullet points.
+    `;
+}

@@ -1,7 +1,7 @@
 import "dotenv/config";
 import cors from "cors";
 import express from "express";
-import { answerConfusion } from "./gemini.js";
+import { answerConfusion, summarizeRecentTranscript } from "./gemini.js";
 import { addFlag, getDashboardData } from "./sessionStore.js";
 
 const app = express();
@@ -46,6 +46,40 @@ app.post("/api/confusion", async (req, res) => {
 
         return res.status(500).json({
             error: "LockIn could not generate an explanation right now.",
+        });
+    }
+});
+
+app.post("/api/catch-up", async (req, res) => {
+    const {
+        sessionId,
+        slideNumber,
+        recentTranscript,
+        slideText,
+    } = req.body;
+
+    if (!recentTranscript) {
+        return res.status(400).json({
+            error: "recentTranscript is required.",
+        });
+    }
+
+    try {
+        const summary = await summarizeRecentTranscript({
+            recentTranscript,
+            slideText,
+        });
+
+        return res.json({
+            sessionId,
+            slideNumber,
+            summary,
+        });
+    } catch (error) {
+        console.error("Catch-up error:", error);
+
+        return res.status(500).json({
+            error: "LockIn could not create a catch-up summary right now.",
         });
     }
 });
