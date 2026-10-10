@@ -6,22 +6,24 @@
  *
  * - `index` is 0-based everywhere. Display 1-based in UI only.
  * - `text` is always a string, never null. A slide with no text is "".
+ *   Lines are joined with "\n" (handout paragraphs keep their line breaks).
+ * - A "slide" is one PDF page: the upload may be a slide deck or a prelecture handout.
  * - `hasTextLayer` is false for scanned PDFs (no usable text, no OCR).
  *
  * @typedef {Object} Slide
  * @property {number} index  0-based slide index
- * @property {string} text   whitespace-normalized extracted text, "" if none
+ * @property {string} text   extracted text, one line per "\n", "" if none
  *
  * @typedef {Object} DeckContext
  * @property {string}   filename
  * @property {number}   slideCount
  * @property {Slide[]}  slides
- * @property {string[]} terms         deduped domain vocabulary for prompts + STT priming
+ * @property {string[]} terms         up to 40 domain terms, strongest first, for prompts + STT priming
  * @property {boolean}  hasTextLayer
  */
 
-// Hardcoded placeholder so other roles can build against the shape now.
-// Will be replaced by real extraction from the uploaded PDF.
+// Hardcoded placeholder for building and testing without uploading a PDF.
+// Real data comes from <SlidePanel onDeckReady={...} /> (see extractDeckContext.js).
 /** @type {DeckContext} */
 export const stubDeckContext = {
   filename: "demo-lecture.pdf",
