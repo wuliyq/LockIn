@@ -1,3 +1,5 @@
+import { extractTerms } from './extractTerms'
+
 /**
  * Build the DeckContext (see stubDeckContext.js) from a loaded pdf.js document.
  * Runs once per upload. Works for slide decks and prelecture handouts; each PDF
@@ -12,7 +14,8 @@ export async function extractDeckContext(doc, filename) {
   for (let pageNum = 1; pageNum <= doc.numPages; pageNum++) {
     const page = await doc.getPage(pageNum)
     const content = await page.getTextContent()
-    pages.push(itemsToLines(content.items))
+    const [, yMin, , yMax] = page.view // page box in PDF units
+    pages.push(itemsToLines(content.items, yMin, yMax - yMin))
   }
 
   const slides = pages.map((lines, index) => ({
@@ -24,7 +27,7 @@ export async function extractDeckContext(doc, filename) {
     filename,
     slideCount: doc.numPages,
     slides,
-    terms: [],
+    terms: extractTerms(pages),
     // Scanned PDFs come back with every page empty (or a stray page number).
     hasTextLayer: slides.some((slide) => slide.text.length > 20),
   }
@@ -32,21 +35,22 @@ export async function extractDeckContext(doc, filename) {
 
 /**
  * pdf.js returns positioned text fragments, not lines. Group them into lines,
- * keeping each line's font size (largest on a page is usually the title).
+ * keeping each line's font size (largest on a page is usually the title) and its
+ * height on the page (0 = bottom, 1 = top), which flags headers and footers.
  *
  * `hasEOL` alone isn't reliable (titles often lack it), so a jump in vertical
  * position also starts a new line.
  *
- * @returns {Array<{ text: string, size: number }>}
+ * @returns {Array<{ text: string, size: number, y: number }>}
  */
-function itemsToLines(items) {
+function itemsToLines(items, yMin, pageHeight) {
   const lines = []
   let line = null
 
   const flush = () => {
     if (!line) return
     const text = line.text.replace(/\s+/g, ' ').trim()
-    if (text) lines.push({ text, size: line.size })
+    if (text) lines.push({ text, size: line.size, y: (line.y - yMin) / pageHeight })
     line = null
   }
 
