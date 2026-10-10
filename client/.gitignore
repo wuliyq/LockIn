@@ -11,8 +11,6 @@ node_modules
 dist
 dist-ssr
 *.local
-serve-stt.js
-stt.js
 
 # Editor directories and files
 .vscode/*
