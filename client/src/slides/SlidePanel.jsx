@@ -95,6 +95,14 @@ export default function SlidePanel({ onDeckReady, onSlideChange }) {
           `${deck.filename}: ${plural(deck.slideCount, 'page')}, ${plural(deck.terms.length, 'term')}`}
         {status === 'error' && `Couldn't open this PDF (${error})`}
       </p>
+
+      {/* Scanned PDFs (or failed extraction) still load; say plainly what that means. */}
+      {status === 'ready' && !deck.hasTextLayer && (
+        <p className="slide-panel__notice">
+          <strong>This PDF has no readable text</strong> (it may be a scanned copy), so AI help
+          can't see what's on these pages yet. Your notes and the recording still work normally.
+        </p>
+      )}
     </div>
   )
 }
