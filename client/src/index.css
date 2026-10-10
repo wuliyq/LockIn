@@ -25,6 +25,13 @@
   --flag-foreground: oklch(0.98 0 0);
   --notice: oklch(0.8 0.14 85); /* informational, not an error */
 
+  /* Flag types (see lockin/flagTypes.js). Shared with the lecturer dashboard charts,
+     so each stays distinct from the others and from the theme's own cue color. */
+  --flag-type-lost: oklch(0.55 0.03 250); /* slate */
+  --flag-type-confusing: oklch(0.6 0.19 25); /* red */
+  --flag-type-real-world: oklch(0.55 0.12 245); /* blue */
+  --flag-type-worked-example: oklch(0.55 0.15 300); /* violet */
+
   --font-display: 'Fraunces', Georgia, serif;
   --font-body: 'IBM Plex Sans', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;

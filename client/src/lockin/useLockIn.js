@@ -1,33 +1,23 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { FLAG_TYPE_BY_ID, createFlag, formatFlagTime } from './flagTypes'
 
 /**
  * Workspace state for the lecture view: the uploaded deck (a DeckContext from
- * SlidePanel), the current slide, per-slide notes, confusion flags, the live
- * transcript and the helper's answers.
+ * SlidePanel), the current slide, per-slide notes, flags and the live transcript.
  *
  * The app owns the slide index and passes it to <SlidePanel index={current}>
  * (controlled mode), so the panel and the notes editor can never disagree.
  *
  * Notes and flags persist in localStorage, keyed by the deck's filename, so
- * re-uploading the same PDF brings them back.
+ * re-uploading the same PDF brings them back. Sending flags to the server (for
+ * the lecturer dashboard) comes next; records already use the server's field names.
  */
-
-export const AI_LABELS = {
-  catchup: 'Catch me up',
-  example: 'Give an example',
-  check: 'Quick check',
-  why: 'Why it matters',
-}
-
 export function useLockIn() {
   const [deck, setDeck] = useState(null) // DeckContext | null (null while a new PDF is read)
   const [reading, setReading] = useState(false) // a new PDF is open but its text isn't ready yet
   const [current, setCurrent] = useState(0) // 0-based; SlidePanel shows this page
   const [notesByDeck, setNotesByDeck] = useStored('lockin.notes', {}) // { [filename]: { [index]: text } }
-  const [confusions, setConfusions] = useStored('lockin.confusions', []) // [{ id, filename, slide, text }]
   const [savedAt, setSavedAt] = useState('')
-  const [ai, setAi] = useState(null) // { kind, text, slide } | null
-  const [aiLoading, setAiLoading] = useState(false)
   const transcript = useTranscript()
 
   const deckKey = deck?.filename ?? ''
@@ -35,12 +25,14 @@ export function useLockIn() {
   const title = slideText.split('\n', 1)[0].trim()
   const note = notesByDeck[deckKey]?.[current] ?? ''
 
+  const flags = useFlags({ deckKey, current, enabled: Boolean(deck) })
+
   // SlidePanel callbacks. A new upload calls onDeckReady(null) and onSlideChange(0)
   // as soon as it opens, then onDeckReady(deck) once its text has been read.
   const onDeckReady = (nextDeck) => {
     setDeck(nextDeck)
     setReading(nextDeck === null)
-    setAi(null)
+    flags.cancelDraft() // a half-written flag belongs to the old deck
   }
   const onSlideChange = (index) => setCurrent(index)
 
@@ -51,33 +43,6 @@ export function useLockIn() {
 
   const insertLine = (line) => setNote((note ? note + '\n' : '') + line)
 
-  const markConfusing = (text) => {
-    const selected = window.getSelection()?.toString().trim() ?? ''
-    setConfusions((list) => [
-      ...list,
-      {
-        id: crypto.randomUUID(),
-        filename: deckKey,
-        slide: current,
-        text: text.trim() || selected || title || `Slide ${current + 1}`,
-      },
-    ])
-  }
-
-  // Placeholder answers until the helper is wired to the server's Gemini API.
-  const askTimer = useRef(null)
-  useEffect(() => () => clearTimeout(askTimer.current), [])
-  const ask = (kind) => {
-    if (!deck) return
-    const slide = current
-    setAiLoading(true)
-    clearTimeout(askTimer.current)
-    askTimer.current = setTimeout(() => {
-      setAi({ kind, slide, text: placeholderAnswer(kind, slideText, slide, note) })
-      setAiLoading(false)
-    }, 600)
-  }
-
   return {
     deck,
     reading,
@@ -86,16 +51,97 @@ export function useLockIn() {
     slideText,
     onDeckReady,
     onSlideChange,
+    goToSlide: setCurrent, // SlidePanel clamps out-of-range indexes
     note,
     setNote,
     insertLine,
     savedAt,
-    confusions: confusions.filter((c) => c.filename === deckKey),
-    markConfusing,
-    ai,
-    aiLoading,
-    ask,
+    ...flags,
     ...transcript,
+  }
+}
+
+/**
+ * Flags for the current deck, the composer's draft, and the undo toast.
+ *
+ * A flag's timestamp and slide are captured the moment a flag button is pressed,
+ * not when the student finishes typing their question, so the lecturer sees when
+ * the confusion actually happened.
+ */
+function useFlags({ deckKey, current, enabled }) {
+  const [allFlags, setAllFlags] = useStored('lockin.flags', []) // every deck's flags, oldest first
+  const [draft, setDraft] = useState(null) // composer contents, or null when closed
+  const [toast, setToast] = useState(null) // { id, message, undo? }
+
+  const flags = allFlags.filter((f) => f.deck === deckKey).reverse() // newest first
+
+  const showToast = (message, undo) => setToast({ id: crypto.randomUUID(), message, undo })
+  const dismissToast = useCallback(() => setToast(null), []) // stable, so the toast timer isn't reset by re-renders
+
+  const save = (flag) => {
+    setAllFlags((list) => [...list, flag])
+    const type = FLAG_TYPE_BY_ID[flag.flagType]
+    showToast(`${type.quick ? 'Marked' : `${type.name} flag saved on`} slide ${flag.slideNumber} at ${formatFlagTime(flag.timestamp)}`, () =>
+      setAllFlags((list) => list.filter((f) => f.id !== flag.id)),
+    )
+  }
+
+  /**
+   * Start a flag of `flagType` for the current slide, optionally about some
+   * highlighted text. Quick flags save at once; others open the composer.
+   */
+  const startFlag = (flagType, { source = null, selectedText = '' } = {}) => {
+    if (!enabled) return
+    const moment = { deck: deckKey, slideNumber: current + 1, timestamp: new Date().toISOString() }
+    if (FLAG_TYPE_BY_ID[flagType].quick) {
+      save(createFlag({ ...moment, flagType, source, selectedText }))
+      return
+    }
+    setDraft((open) =>
+      // Already composing with no new highlight: just switch the type, keep the rest.
+      open && !selectedText
+        ? { ...open, flagType }
+        : { ...moment, flagType, source, selectedText, studentComment: open?.studentComment ?? '' },
+    )
+  }
+
+  const updateDraft = (patch) => setDraft((d) => (d ? { ...d, ...patch } : d))
+  const cancelDraft = () => setDraft(null)
+  const saveDraft = () => {
+    if (!draft) return
+    save(createFlag(draft))
+    setDraft(null)
+  }
+
+  const updateFlag = (id, patch) =>
+    setAllFlags((list) => list.map((f) => (f.id === id ? { ...f, ...patch } : f)))
+
+  const deleteFlag = (id) => {
+    const index = allFlags.findIndex((f) => f.id === id)
+    if (index === -1) return
+    const removed = allFlags[index]
+    setAllFlags((list) => list.filter((f) => f.id !== id))
+    showToast(`Flag on slide ${removed.slideNumber} deleted`, () =>
+      setAllFlags((list) => {
+        const next = [...list]
+        next.splice(Math.min(index, next.length), 0, removed)
+        return next
+      }),
+    )
+  }
+
+  return {
+    flags,
+    canFlag: enabled,
+    startFlag,
+    draft,
+    updateDraft,
+    cancelDraft,
+    saveDraft,
+    updateFlag,
+    deleteFlag,
+    toast,
+    dismissToast,
   }
 }
 
@@ -152,28 +198,4 @@ function useStored(key, initial) {
     }
   }, [key, value])
   return [value, setValue]
-}
-
-function placeholderAnswer(kind, slideText, index, note) {
-  const lines = slideText
-    .split('\n')
-    .map((line) => line.replace(/^[•●▪◦\-–*]\s*/, '').trim())
-    .filter(Boolean)
-  const [title = `Slide ${index + 1}`, ...rest] = lines
-  const points = rest.slice(0, 2).join('; ') || 'the main idea on this slide'
-  const hint = note.trim()
-    ? ` Your notes mention “${note.trim().split(/\s+/).slice(0, 6).join(' ')}…”.`
-    : ''
-  switch (kind) {
-    case 'catchup':
-      return `${title}: the key points are ${points}.${hint}`
-    case 'example':
-      return `Example for ${title}: think of a concrete case where ${points} would change the outcome.`
-    case 'check':
-      return `Quick check: in one sentence, how does “${rest[0] ?? title}” connect to ${title}?`
-    case 'why':
-      return `Why it matters: ${title} comes up again later; understanding ${points} makes the next slides easier to follow.`
-    default:
-      return ''
-  }
 }

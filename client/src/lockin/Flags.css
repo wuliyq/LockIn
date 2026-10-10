@@ -1,0 +1,483 @@
+/* Flags: bar, composer, list, toast and the highlight toolbar.
+   Each piece sets --type from its .flag-type--* class; colors live in index.css. */
+
+.flag-type--lost {
+  --type: var(--flag-type-lost);
+}
+.flag-type--confusing {
+  --type: var(--flag-type-confusing);
+}
+.flag-type--real_world {
+  --type: var(--flag-type-real-world);
+}
+.flag-type--worked_example {
+  --type: var(--flag-type-worked-example);
+}
+
+/* --- Shared bits ------------------------------------------------------------ */
+
+.icon-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 0.375rem;
+  color: var(--muted-foreground);
+}
+
+.icon-btn:hover {
+  background: var(--muted);
+  color: var(--foreground);
+}
+
+.link-btn {
+  color: var(--primary);
+  font-size: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.btn-primary,
+.btn-quiet {
+  padding: 0.375rem 0.875rem;
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+
+.btn-primary {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.btn-primary:hover {
+  background: color-mix(in oklab, var(--primary) 85%, black);
+}
+
+.btn-quiet {
+  color: var(--muted-foreground);
+}
+
+.btn-quiet:hover {
+  background: var(--muted);
+  color: var(--foreground);
+}
+
+.type-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--type);
+  flex-shrink: 0;
+}
+
+/* Type label: tinted background, colored icon, normal-contrast text. */
+.flag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.625rem;
+  border: 1px solid color-mix(in oklab, var(--type) 35%, transparent);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--type) 8%, var(--card));
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.flag-chip .icon {
+  color: var(--type);
+}
+
+button.flag-chip:not(.is-static):hover {
+  background: color-mix(in oklab, var(--type) 16%, var(--card));
+}
+
+.flag-chip.is-active {
+  background: var(--type);
+  border-color: var(--type);
+  color: #fff;
+}
+
+.flag-chip.is-active .icon {
+  color: #fff;
+}
+
+.flag-quote {
+  margin: 0;
+  padding: 0.375rem 0.625rem;
+  border-left: 3px solid var(--type);
+  border-radius: 0.375rem;
+  background: var(--muted);
+}
+
+.flag-quote blockquote {
+  margin: 0;
+  font-size: 0.875rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.flag-quote figcaption {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+  font-size: 0.6875rem;
+  color: var(--muted-foreground);
+}
+
+/* --- Flag bar (under the notes) ------------------------------------------------ */
+
+.flag-bar {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.flag-bar__label {
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+.flag-bar__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.flag-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.4375rem 0.875rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--card);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.flag-btn .icon {
+  color: var(--type);
+}
+
+.flag-btn:not(:disabled):hover {
+  border-color: var(--type);
+  background: color-mix(in oklab, var(--type) 10%, var(--card));
+}
+
+.flag-btn.is-active {
+  border-color: var(--type);
+  background: color-mix(in oklab, var(--type) 14%, var(--card));
+}
+
+.flag-btn--quick {
+  width: 2.25rem;
+  justify-content: center;
+  padding-inline: 0;
+}
+
+.flag-btn__q {
+  font-weight: 700;
+  font-size: 1rem;
+  line-height: 1;
+  color: var(--type);
+}
+
+/* --- Composer ------------------------------------------------------------------- */
+
+.flag-composer {
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  background: var(--card);
+  border: 1px solid var(--type);
+  border-radius: 1rem;
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--type) 14%, transparent);
+}
+
+.flag-composer__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.flag-composer__types {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.flag-composer__when {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+
+.flag-composer__input,
+.flag-item__edit textarea {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  resize: vertical;
+  min-height: 3.25rem;
+  font-size: 0.875rem;
+  line-height: 1.4;
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 0.625rem;
+  outline: none;
+}
+
+.flag-composer__input:focus,
+.flag-item__edit textarea:focus {
+  border-color: var(--primary);
+}
+
+.flag-composer__actions,
+.flag-item__edit-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.375rem;
+}
+
+.flag-composer__hint {
+  margin-right: auto;
+  font-size: 0.6875rem;
+  color: var(--muted-foreground);
+}
+
+/* --- List (Flags tab) ------------------------------------------------------------ */
+
+.flag-list {
+  flex: 1;
+  min-height: 12rem;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+}
+
+.flag-list--empty {
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  gap: 0.375rem;
+  font-size: 0.875rem;
+}
+
+.flag-list--empty p {
+  margin: 0;
+  max-width: 26rem;
+}
+
+.flag-list__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.625rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+}
+
+.filter-chip:hover {
+  color: var(--foreground);
+}
+
+.filter-chip.is-active {
+  border-color: var(--primary);
+  background: color-mix(in oklab, var(--primary) 10%, var(--card));
+  color: var(--foreground);
+}
+
+.filter-chip__count {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+}
+
+.flag-list__items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.flag-list__none {
+  font-size: 0.8125rem;
+}
+
+.flag-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--type);
+  border-radius: 0.75rem;
+  background: var(--card);
+}
+
+.flag-item__head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.flag-item__when {
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.flag-item__when:hover {
+  color: var(--primary);
+  text-decoration: underline;
+}
+
+.flag-item__actions {
+  margin-left: auto;
+  display: flex;
+  gap: 0.125rem;
+}
+
+.flag-item__question {
+  margin: 0;
+  font-size: 0.9375rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.flag-item__add {
+  align-self: flex-start;
+  font-size: 0.8125rem;
+}
+
+.flag-item__edit {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.flag-item__answer {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  background: color-mix(in oklab, var(--primary) 8%, var(--card));
+  font-size: 0.875rem;
+}
+
+/* --- Toast ----------------------------------------------------------------------- */
+
+/* Top-right, under the header: never over the flag buttons or the slide. */
+.flag-toast-region {
+  position: fixed;
+  top: 4.25rem;
+  right: 1.5rem;
+  z-index: 60;
+  max-width: calc(100vw - 2rem);
+}
+
+@media (max-width: 860px) {
+  .flag-toast-region {
+    right: 50%;
+    transform: translateX(50%);
+  }
+}
+
+.flag-toast {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.5rem 0.5rem 1rem;
+  border-radius: 999px;
+  background: var(--foreground);
+  color: var(--card);
+  font-size: 0.8125rem;
+  box-shadow: var(--shadow-float);
+}
+
+.flag-toast .link-btn {
+  color: inherit;
+  font-weight: 600;
+}
+
+.flag-toast .icon-btn {
+  color: inherit;
+  opacity: 0.7;
+}
+
+.flag-toast .icon-btn:hover {
+  background: color-mix(in oklab, var(--card) 15%, transparent);
+  opacity: 1;
+}
+
+/* --- Highlight toolbar ------------------------------------------------------------- */
+
+.selection-flagger {
+  position: fixed;
+  z-index: 70;
+  transform: translate(-50%, -100%);
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  border-radius: 999px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-float);
+}
+
+.selection-flagger.is-below {
+  transform: translateX(-50%);
+}
+
+.selection-flagger__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3125rem;
+  padding: 0.3125rem 0.625rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.selection-flagger__btn .icon {
+  color: var(--type);
+}
+
+.selection-flagger__btn:hover {
+  background: color-mix(in oklab, var(--type) 12%, var(--card));
+}
+
+.selection-flagger__btn .flag-btn__q {
+  width: 1rem;
+  text-align: center;
+}

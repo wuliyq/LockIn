@@ -1,24 +1,12 @@
 import { useState } from 'react'
-import {
-  ChatIcon,
-  FlagIcon,
-  HelpIcon,
-  LightbulbIcon,
-  LockIcon,
-  MicIcon,
-  MicOffIcon,
-  PlusIcon,
-  TargetIcon,
-  XIcon,
-  ZapIcon,
-} from './icons'
-import { AI_LABELS, useLockIn } from './lockin/useLockIn'
+import { LockIcon, MicIcon, MicOffIcon, PlusIcon } from './icons'
+import { FlagBar, FlagComposer, FlagList, FlagToast } from './lockin/Flags'
+import SelectionFlagger from './lockin/SelectionFlagger'
+import { useLockIn } from './lockin/useLockIn'
 import { SlidePanel } from './slides'
 import './App.css'
 
-const AI_ICONS = { catchup: ZapIcon, example: LightbulbIcon, check: HelpIcon, why: TargetIcon }
-
-/** Sage design: slides on the left, notes on the right, chat helper bottom-left. */
+/** Sage design: slides on the left, notes and flags on the right. */
 export default function App() {
   const li = useLockIn()
 
@@ -44,68 +32,113 @@ export default function App() {
               onSlideChange={li.onSlideChange}
             />
           </div>
+          <SlideText li={li} />
           <Transcript li={li} />
         </section>
 
-        <section className="app__notes" aria-label="Notes">
-          <Notes li={li} />
+        <section className="app__notes" aria-label="Notes and flags">
+          <NotesAndFlags li={li} />
         </section>
       </div>
 
-      <Helper li={li} />
+      <SelectionFlagger li={li} />
+      <FlagToast li={li} />
     </div>
   )
 }
 
-function Notes({ li }) {
-  const [confusion, setConfusion] = useState('')
+function NotesAndFlags({ li }) {
+  const [tab, setTab] = useState('notes')
   const slideLabel = li.deck
     ? `Slide ${li.current + 1}${li.title ? ` · ${li.title}` : ''}`
     : 'No slides yet'
 
   return (
     <>
-      <p className="notes__meta">
-        <span>{li.savedAt ? `Saved ${li.savedAt}` : 'Notes autosave'}</span>
-        <span aria-hidden="true">·</span>
-        <span className="notes__slide">{slideLabel}</span>
-      </p>
-      <textarea
-        className="notes__editor"
-        aria-label={`Notes for ${slideLabel}`}
-        value={li.note}
-        onChange={(e) => li.setNote(e.target.value)}
-        placeholder={
-          li.deck
-            ? "Write freely. LockIN keeps track of which slide you're on."
-            : 'Upload your slides to keep notes linked to each slide, or just start writing.'
-        }
-      />
-      <form
-        className="notes__flag-form"
-        onSubmit={(e) => {
-          e.preventDefault()
-          li.markConfusing(confusion)
-          setConfusion('')
-        }}
-      >
-        <input
-          value={confusion}
-          onChange={(e) => setConfusion(e.target.value)}
-          placeholder="Something unclear? Jot it here or highlight text…"
-          aria-label="What's confusing"
-        />
-        <button type="submit" className="btn-flag">
-          <FlagIcon /> Confusing
-        </button>
-      </form>
-      {li.confusions.length > 0 && (
-        <p className="notes__flag-count">
-          {li.confusions.length} confusing {li.confusions.length === 1 ? 'point' : 'points'}{' '}
-          flagged in this deck
+      <div className="notes__top">
+        <div className="tabs" role="tablist" aria-label="Notes or flags">
+          <button
+            type="button"
+            role="tab"
+            id="tab-notes"
+            aria-controls="panel-notes"
+            aria-selected={tab === 'notes'}
+            className={`tabs__tab ${tab === 'notes' ? 'is-active' : ''}`}
+            onClick={() => setTab('notes')}
+          >
+            Notes
+          </button>
+          <button
+            type="button"
+            role="tab"
+            id="tab-flags"
+            aria-controls="panel-flags"
+            aria-selected={tab === 'flags'}
+            className={`tabs__tab ${tab === 'flags' ? 'is-active' : ''}`}
+            onClick={() => setTab('flags')}
+          >
+            Flags {li.flags.length > 0 && <span className="tabs__count">{li.flags.length}</span>}
+          </button>
+        </div>
+        <p className="notes__meta">
+          {tab === 'notes' && (
+            <>
+              <span>{li.savedAt ? `Saved ${li.savedAt}` : 'Notes autosave'}</span>
+              <span aria-hidden="true">·</span>
+            </>
+          )}
+          <span className="notes__slide">{slideLabel}</span>
         </p>
+      </div>
+
+      {tab === 'notes' ? (
+        <div className="notes__panel" role="tabpanel" id="panel-notes" aria-labelledby="tab-notes">
+          <textarea
+            className="notes__editor"
+            data-flag-source="notes"
+            aria-label={`Notes for ${slideLabel}`}
+            value={li.note}
+            onChange={(e) => li.setNote(e.target.value)}
+            placeholder={
+              li.deck
+                ? "Write freely. LockIN keeps track of which slide you're on. Highlight anything to flag it."
+                : 'Upload your slides to keep notes linked to each slide, or just start writing.'
+            }
+          />
+        </div>
+      ) : (
+        <div className="notes__panel" role="tabpanel" id="panel-flags" aria-labelledby="tab-flags">
+          <FlagList li={li} />
+        </div>
       )}
+
+      <FlagComposer li={li} />
+      <FlagBar li={li} />
     </>
+  )
+}
+
+/** The current slide's extracted text, so students can highlight and flag it. */
+function SlideText({ li }) {
+  if (!li.deck) return null
+  const lines = li.slideText.split('\n').filter((line) => line.trim())
+
+  return (
+    <div className="card slide-text">
+      <div className="slide-text__head">
+        <span className="eyebrow">Slide {li.current + 1} text</span>
+        {lines.length > 0 && <span className="slide-text__hint">Highlight to flag</span>}
+      </div>
+      {lines.length > 0 ? (
+        <div className="slide-text__body" data-flag-source="slide">
+          {lines.map((line, i) => (
+            <p key={i}>{line}</p>
+          ))}
+        </div>
+      ) : (
+        <p className="slide-text__empty">No readable text on this slide. You can still flag it with the buttons.</p>
+      )}
+    </div>
   )
 }
 
@@ -130,7 +163,7 @@ function Transcript({ li }) {
           )}
         </button>
       </div>
-      <div className="transcript__lines">
+      <div className="transcript__lines" data-flag-source={li.transcript.length ? 'transcript' : undefined}>
         {li.transcript.length === 0 && (
           <p className="transcript__empty">Start listening to see the lecture transcribed here.</p>
         )}
@@ -148,68 +181,6 @@ function Transcript({ li }) {
           </div>
         ))}
       </div>
-    </div>
-  )
-}
-
-function Helper({ li }) {
-  const [open, setOpen] = useState(false)
-
-  return (
-    <div className="helper">
-      {open && (
-        <div className="helper__panel" role="dialog" aria-label="LockIN helper">
-          <div className="helper__head">
-            <span>
-              <ChatIcon /> LockIN helper
-            </span>
-            <button type="button" onClick={() => setOpen(false)} aria-label="Close helper">
-              <XIcon />
-            </button>
-          </div>
-          <div className="helper__body" aria-live="polite">
-            <p className="muted">
-              {li.deck
-                ? `Hi! I'm looking at slide ${li.current + 1}. What do you need?`
-                : "Upload your slides and I'll follow along with the lecture."}
-            </p>
-            {li.aiLoading && <p className="muted">Thinking…</p>}
-            {li.ai && !li.aiLoading && (
-              <div className="helper__answer">
-                <b>
-                  {AI_LABELS[li.ai.kind]} · slide {li.ai.slide + 1}
-                </b>
-                {li.ai.text}
-              </div>
-            )}
-          </div>
-          <div className="helper__actions">
-            {Object.entries(AI_LABELS).map(([kind, label]) => {
-              const Icon = AI_ICONS[kind]
-              return (
-                <button
-                  key={kind}
-                  type="button"
-                  disabled={!li.deck}
-                  onClick={() => li.ask(kind)}
-                  className={`chip ${li.ai?.kind === kind ? 'is-active' : ''}`}
-                >
-                  <Icon /> {label}
-                </button>
-              )
-            })}
-          </div>
-        </div>
-      )}
-      <button
-        type="button"
-        className="helper__fab"
-        onClick={() => setOpen(!open)}
-        aria-label={open ? 'Close helper' : 'Open helper'}
-        aria-expanded={open}
-      >
-        {open ? <XIcon /> : <ChatIcon />}
-      </button>
     </div>
   )
 }
