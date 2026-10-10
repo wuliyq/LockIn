@@ -1,122 +1,215 @@
 import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
+import {
+  ChatIcon,
+  FlagIcon,
+  HelpIcon,
+  LightbulbIcon,
+  LockIcon,
+  MicIcon,
+  MicOffIcon,
+  PlusIcon,
+  TargetIcon,
+  XIcon,
+  ZapIcon,
+} from './icons'
+import { AI_LABELS, useLockIn } from './lockin/useLockIn'
+import SlidePanel from './slides/SlidePanel'
 import './App.css'
 
-function App() {
-  const [count, setCount] = useState(0)
+const AI_ICONS = { catchup: ZapIcon, example: LightbulbIcon, check: HelpIcon, why: TargetIcon }
+
+/** Sage design: slides on the left, notes on the right, chat helper bottom-left. */
+export default function App() {
+  const li = useLockIn()
+
+  return (
+    <div className="theme-sage app">
+      <header className="app__header">
+        <span className="app__logo">
+          <LockIcon /> LockIN
+        </span>
+        <span className="app__deck">
+          {li.reading ? 'Reading slides…' : (li.deck?.filename ?? 'No slides loaded')}
+        </span>
+        {/* Balances the logo so the deck name stays centered. */}
+        <span className="app__header-spacer" aria-hidden="true" />
+      </header>
+
+      <div className="app__body">
+        <section className="app__slides" aria-label="Lecture">
+          <div className="app__slide-box">
+            <SlidePanel
+              index={li.current}
+              onDeckReady={li.onDeckReady}
+              onSlideChange={li.onSlideChange}
+            />
+          </div>
+          <Transcript li={li} />
+        </section>
+
+        <section className="app__notes" aria-label="Notes">
+          <Notes li={li} />
+        </section>
+      </div>
+
+      <Helper li={li} />
+    </div>
+  )
+}
+
+function Notes({ li }) {
+  const [confusion, setConfusion] = useState('')
+  const slideLabel = li.deck
+    ? `Slide ${li.current + 1}${li.title ? ` · ${li.title}` : ''}`
+    : 'No slides yet'
 
   return (
     <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
+      <p className="notes__meta">
+        <span>{li.savedAt ? `Saved ${li.savedAt}` : 'Notes autosave'}</span>
+        <span aria-hidden="true">·</span>
+        <span className="notes__slide">{slideLabel}</span>
+      </p>
+      <textarea
+        className="notes__editor"
+        aria-label={`Notes for ${slideLabel}`}
+        value={li.note}
+        onChange={(e) => li.setNote(e.target.value)}
+        placeholder={
+          li.deck
+            ? "Write freely. LockIN keeps track of which slide you're on."
+            : 'Upload your slides to keep notes linked to each slide, or just start writing.'
+        }
+      />
+      <form
+        className="notes__flag-form"
+        onSubmit={(e) => {
+          e.preventDefault()
+          li.markConfusing(confusion)
+          setConfusion('')
+        }}
+      >
+        <input
+          value={confusion}
+          onChange={(e) => setConfusion(e.target.value)}
+          placeholder="Something unclear? Jot it here or highlight text…"
+          aria-label="What's confusing"
+        />
+        <button type="submit" className="btn-flag">
+          <FlagIcon /> Confusing
         </button>
-      </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
+      </form>
+      {li.confusions.length > 0 && (
+        <p className="notes__flag-count">
+          {li.confusions.length} confusing {li.confusions.length === 1 ? 'point' : 'points'}{' '}
+          flagged in this deck
+        </p>
+      )}
     </>
   )
 }
 
-export default App
+function Transcript({ li }) {
+  return (
+    <div className="card transcript">
+      <div className="transcript__head">
+        <span className="eyebrow">Live transcript</span>
+        <button
+          type="button"
+          onClick={li.toggleListen}
+          className={`transcript__toggle ${li.listening ? 'is-on' : ''}`}
+        >
+          {li.listening ? (
+            <>
+              <MicOffIcon /> Stop
+            </>
+          ) : (
+            <>
+              <MicIcon /> Listen
+            </>
+          )}
+        </button>
+      </div>
+      <div className="transcript__lines">
+        {li.transcript.length === 0 && (
+          <p className="transcript__empty">Start listening to see the lecture transcribed here.</p>
+        )}
+        {li.transcript.map((line, i) => (
+          <div key={i} className="transcript__line">
+            <button
+              type="button"
+              onClick={() => li.insertLine(line)}
+              title="Insert into notes"
+              aria-label="Insert into notes"
+            >
+              <PlusIcon />
+            </button>
+            <span>{line}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function Helper({ li }) {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <div className="helper">
+      {open && (
+        <div className="helper__panel" role="dialog" aria-label="LockIN helper">
+          <div className="helper__head">
+            <span>
+              <ChatIcon /> LockIN helper
+            </span>
+            <button type="button" onClick={() => setOpen(false)} aria-label="Close helper">
+              <XIcon />
+            </button>
+          </div>
+          <div className="helper__body" aria-live="polite">
+            <p className="muted">
+              {li.deck
+                ? `Hi! I'm looking at slide ${li.current + 1}. What do you need?`
+                : "Upload your slides and I'll follow along with the lecture."}
+            </p>
+            {li.aiLoading && <p className="muted">Thinking…</p>}
+            {li.ai && !li.aiLoading && (
+              <div className="helper__answer">
+                <b>
+                  {AI_LABELS[li.ai.kind]} · slide {li.ai.slide + 1}
+                </b>
+                {li.ai.text}
+              </div>
+            )}
+          </div>
+          <div className="helper__actions">
+            {Object.entries(AI_LABELS).map(([kind, label]) => {
+              const Icon = AI_ICONS[kind]
+              return (
+                <button
+                  key={kind}
+                  type="button"
+                  disabled={!li.deck}
+                  onClick={() => li.ask(kind)}
+                  className={`chip ${li.ai?.kind === kind ? 'is-active' : ''}`}
+                >
+                  <Icon /> {label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+      <button
+        type="button"
+        className="helper__fab"
+        onClick={() => setOpen(!open)}
+        aria-label={open ? 'Close helper' : 'Open helper'}
+        aria-expanded={open}
+      >
+        {open ? <XIcon /> : <ChatIcon />}
+      </button>
+    </div>
+  )
+}
