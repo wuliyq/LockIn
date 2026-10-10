@@ -5,26 +5,30 @@ import SlideCanvas from './SlideCanvas'
 import './SlidePanel.css'
 
 /**
- * Top-left panel: PDF upload (slides or prelecture handout), the current page, and
- * text extraction. Navigation comes in the next commit. Fills whatever box the
- * layout gives it.
+ * Top-left panel: PDF upload (slides or prelecture handout), the current page with
+ * prev/next navigation, and text extraction. Fills whatever box the layout gives it.
+ *
+ * Notes are per slide, so the current index must never disagree between this panel
+ * and the notes editor. Pass `index` to own it in app state (recommended): the panel
+ * then shows that page and only *requests* changes through onSlideChange. Without
+ * `index`, the panel tracks the page itself.
  *
  * The pdf.js document stays inside this component. Callers only ever get plain data.
  *
  * @param {Object} props
+ * @param {number} [props.index]  0-based page to show (controlled mode)
  * @param {(deck: import('./stubDeckContext').DeckContext) => void} [props.onDeckReady]
  *   Called once per upload with the extracted DeckContext.
  * @param {(index: number, timestampMs: number) => void} [props.onSlideChange]
- *   Called on navigation; index is 0-based, timestamp is Date.now(). (Wired in the navigation PR.)
+ *   Called on every navigation and with 0 when a new PDF opens; index is 0-based,
+ *   timestamp is Date.now().
  */
-// onSlideChange is declared now so the interface is stable; remove once it's wired.
-// eslint-disable-next-line no-unused-vars
-export default function SlidePanel({ onDeckReady, onSlideChange }) {
+export default function SlidePanel({ index: controlledIndex, onDeckReady, onSlideChange }) {
   const [pdf, setPdf] = useState(null) // { doc, filename } currently shown
   const [deck, setDeck] = useState(null) // DeckContext for `pdf`; null while its text is read
   const [opening, setOpening] = useState(null) // filename of an upload still opening
   const [error, setError] = useState(null) // { filename, message } of the last failed upload
-  const index = 0 // current page; navigation arrives in the next commit
+  const [ownIndex, setOwnIndex] = useState(0) // used only when `index` isn't passed
 
   const inputRef = useRef(null)
   // Mirrors the shown doc so cleanup can free it and extraction can tell it's been replaced.
@@ -75,6 +79,9 @@ export default function SlidePanel({ onDeckReady, onSlideChange }) {
     setPdf({ doc, filename: file.name })
     setDeck(null)
     setOpening(null)
+    // New PDF starts on page 1, and so do its notes.
+    setOwnIndex(0)
+    onSlideChange?.(0, Date.now())
 
     // Extraction is only stale once this doc is actually replaced (or the panel
     // unmounts), not merely because another upload started and might still fail.
@@ -96,6 +103,32 @@ export default function SlidePanel({ onDeckReady, onSlideChange }) {
     console.log(`[slides] ${file.name}: ${nextDeck.slideCount} pages, ${nextDeck.terms.length} terms`)
     onDeckReady?.(nextDeck)
   }
+
+  const pageCount = pdf?.doc.numPages ?? 0
+  const requested = typeof controlledIndex === 'number' ? controlledIndex : ownIndex
+  // Clamp in case the app's index is out of range for this PDF.
+  const index = Math.min(Math.max(requested, 0), Math.max(pageCount - 1, 0))
+
+  function goTo(next) {
+    const target = Math.min(Math.max(next, 0), pageCount - 1)
+    if (!pdf || target === index) return
+    if (typeof controlledIndex !== 'number') setOwnIndex(target)
+    onSlideChange?.(target, Date.now())
+  }
+
+  // Arrow keys only while the panel itself has focus (e.g. after clicking the slide),
+  // so arrows in the notes editor never change the slide.
+  function handleKeyDown(e) {
+    const step = { ArrowLeft: -1, PageUp: -1, ArrowRight: 1, PageDown: 1 }[e.key]
+    if (step) goTo(index + step)
+    else if (e.key === 'Home') goTo(0)
+    else if (e.key === 'End') goTo(pageCount - 1)
+    else return
+    e.preventDefault()
+  }
+
+  // Clicking prev/next must not pull focus out of the notes editor.
+  const keepFocus = (e) => e.preventDefault()
 
   const fileInput = (
     <input ref={inputRef} type="file" accept="application/pdf,.pdf" onChange={handleFile} hidden />
@@ -129,7 +162,7 @@ export default function SlidePanel({ onDeckReady, onSlideChange }) {
   else status = `${deck.filename}: ${plural(deck.slideCount, 'page')}, ${plural(deck.terms.length, 'term')}`
 
   return (
-    <div className="slide-panel">
+    <div className="slide-panel" tabIndex={0} onKeyDown={handleKeyDown} aria-label="Slides">
       {fileInput}
       <div className="slide-panel__bar">
         <p className="slide-panel__status" role="status" title={status}>
@@ -143,6 +176,33 @@ export default function SlidePanel({ onDeckReady, onSlideChange }) {
 
       <div className="slide-panel__stage">
         <SlideCanvas doc={pdf.doc} index={index} />
+      </div>
+
+      <div className="slide-panel__nav">
+        <button
+          type="button"
+          className="slide-panel__button slide-panel__button--nav"
+          onMouseDown={keepFocus}
+          onClick={() => goTo(index - 1)}
+          disabled={index === 0}
+          aria-label="Previous slide"
+        >
+          ‹
+        </button>
+        {/* Shown 1-based; index stays 0-based everywhere else. */}
+        <span className="slide-panel__counter">
+          {index + 1} / {pageCount}
+        </span>
+        <button
+          type="button"
+          className="slide-panel__button slide-panel__button--nav"
+          onMouseDown={keepFocus}
+          onClick={() => goTo(index + 1)}
+          disabled={index >= pageCount - 1}
+          aria-label="Next slide"
+        >
+          ›
+        </button>
       </div>
 
       {/* Scanned PDFs (or failed extraction) still display; say plainly what that means. */}
