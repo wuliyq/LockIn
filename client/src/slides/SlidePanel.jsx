@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { extractDeckContext } from './extractDeckContext'
-import { closePdf, loadPdf } from './loadPdf'
+import { checkPdfFile, closePdf, describeLoadError, loadPdf } from './loadPdf'
 import SlideCanvas from './SlideCanvas'
 import './SlidePanel.css'
 
@@ -58,6 +58,13 @@ export default function SlidePanel({ index: controlledIndex, onDeckReady, onSlid
     e.target.value = ''
     if (!file) return
 
+    // Obviously not a PDF: say so without disturbing whatever is shown or loading.
+    const problem = checkPdfFile(file)
+    if (problem) {
+      setError({ filename: file.name, message: problem })
+      return
+    }
+
     const loadId = ++loadIdRef.current
     setOpening(file.name)
     setError(null)
@@ -72,7 +79,7 @@ export default function SlidePanel({ index: controlledIndex, onDeckReady, onSlid
       // The current PDF (and its extraction, if still running) stays as it was.
       console.error('[slides] failed to load PDF', err)
       setOpening(null)
-      setError({ filename: file.name, message: err?.message || 'Unknown error' })
+      setError({ filename: file.name, message: describeLoadError(err) })
       return
     }
     if (isStale()) {
@@ -147,7 +154,7 @@ export default function SlidePanel({ index: controlledIndex, onDeckReady, onSlid
   const chooseFile = () => inputRef.current.click()
   const errorLine = error && (
     <p className="slide-panel__error" role="alert">
-      Couldn't open {error.filename} ({error.message})
+      Couldn't open {error.filename}. {error.message}
     </p>
   )
 
