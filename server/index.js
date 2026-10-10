@@ -2,7 +2,12 @@ import "dotenv/config";
 import cors from "cors";
 import express from "express";
 import { answerConfusion, summarizeRecentTranscript } from "./gemini.js";
-import { addFlag, getDashboardData } from "./sessionStore.js";
+import {
+    addFlag,
+    addTranscriptSegment,
+    getDashboardData,
+    getRecentTranscript,
+} from "./sessionStore.js";
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -14,6 +19,44 @@ app.get("/api/health", (reg, res) => {
     res.json({
         status: "LockIn backend is running",
     });
+});
+
+app.post("/api/stt-token", async (req, res) => {
+    const apiKey = process.env.ELEVENLABS_API_KEY;
+
+    if (!apiKey) {
+        return res.status(500).json({
+            error: "ElevenLabs transcription is not configured on this server.",
+        });
+    }
+
+    try {
+        const tokenResponse = await fetch(
+            "https://api.elevenlabs.io/v1/single-use-token/realtime_scribe",
+            {
+                method: "POST",
+                headers: {
+                    "xi-api-key": apiKey,
+                    "Content-Type": "application/json",
+                },
+                body: "{}",
+            },
+        );
+        const payload = await tokenResponse.json();
+
+        if (!tokenResponse.ok || !payload.token) {
+            return res.status(502).json({
+                error: "LockIn could not get a temporary transcription token.",
+            });
+        }
+
+        return res.json({ token: payload.token });
+    } catch (error) {
+        console.error("STT token error:", error);
+        return res.status(502).json({
+            error: "LockIn could not reach the transcription service.",
+        });
+    }
 });
 
 app.post("/api/confusion", async (req, res) => {
@@ -50,6 +93,29 @@ app.post("/api/confusion", async (req, res) => {
     }
 });
 
+app.post("/api/transcript", (req, res) => {
+    const { sessionId, slideNumber, text, startedAt, endedAt } = req.body;
+
+    if (!sessionId || slideNumber === undefined || !text) {
+        return res.status(400).json({
+            error: "sessionId, slideNumber, and text are required.",
+        });
+    }
+
+    try {
+        const savedSegment = addTranscriptSegment(sessionId, {
+            slideNumber,
+            text,
+            startedAt,
+            endedAt,
+        });
+
+        return res.status(201).json({ segment: savedSegment });
+    } catch (error) {
+        return res.status(400).json({ error: error.message });
+    }
+});
+
 app.post("/api/catch-up", async (req, res) => {
     const {
         sessionId,
@@ -58,15 +124,18 @@ app.post("/api/catch-up", async (req, res) => {
         slideText,
     } = req.body;
 
-    if (!recentTranscript) {
+    const transcriptToSummarize = recentTranscript ||
+        getRecentTranscript(sessionId, slideNumber);
+
+    if (!transcriptToSummarize) {
         return res.status(400).json({
-            error: "recentTranscript is required.",
+            error: "recentTranscript is required, or send transcript segments first.",
         });
     }
 
     try {
         const summary = await summarizeRecentTranscript({
-            recentTranscript,
+            recentTranscript: transcriptToSummarize,
             slideText,
         });
 

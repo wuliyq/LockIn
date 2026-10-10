@@ -1,19 +1,13 @@
 {
   "type": "module",
   "scripts": {
-    "dev": "node --watch server/index.js",
-    "start": "node server/index.js",
-    "stt": "node elevenlabs-stt.js",
-    "stt:ui": "node serve-stt.js",
-    "stt:whisper": "node whisper-stt.js"
+    "dev": "node server/index.js",
+    "start": "node server/index.js"
   },
   "dependencies": {
     "@google/genai": "^2.28.0",
-    "@picovoice/pvrecorder-node": "^1.2.9",
-    "@xenova/transformers": "^2.17.2",
     "cors": "^2.8.6",
     "dotenv": "^18.0.7",
-    "express": "^5.3.0",
-    "ws": "^8.18.0"
+    "express": "^5.3.0"
   }
 }
