@@ -40,7 +40,11 @@ const LECTURE_FILLER = new Set(
 )
 
 // Short all-caps tokens that aren't domain acronyms.
-const NOT_ACRONYMS = new Set(['OK', 'AM', 'PM', 'US', 'USA', 'TV', 'PDF', 'FAQ', 'ID', 'TBD', 'TA'])
+const NOT_ACRONYMS = new Set(['OK', 'AM', 'PM', 'US', 'USA', 'TV', 'PDF', 'FAQ', 'ID', 'TBD', 'TA', 'VS'])
+
+// Plain lowercase words seen in the current document ("app", "browser"), so diagram
+// labels like APP or BROWSER aren't mistaken for acronyms. Set per extractTerms call.
+let lowercaseWords = new Set()
 
 // Source weights: how strongly each signal suggests a real term.
 const WEIGHT = { title: 6, definition: 5, acronym: 4, capPhrase: 4, phrase: 4, rareWord: 2 }
@@ -73,6 +77,7 @@ const hasRareWord = (words, threshold) => words.some((w) => rank(w) > threshold 
  */
 export function extractTerms(pages) {
   const contentPages = removeBoilerplate(pages)
+  lowercaseWords = collectLowercaseWords(contentPages)
   const candidates = new Map() // dedupe key → { term, weight, pages: Set, count, order, alwaysCapitalized }
 
   const add = (term, source, pageIndex) => {
@@ -95,12 +100,15 @@ export function extractTerms(pages) {
   }
 
   const phraseCounts = new Map() // dedupe key → { display, count, pages: Set }
+  // Acronyms written in normal-case text, used to fix ALL-CAPS titles ("WHAT IS JSX").
+  const acronymsSeen = new Set()
 
   contentPages.forEach((lines, pageIndex) => {
     const title = findTitle(lines)
     if (title) add(title, 'title', pageIndex)
 
     for (const line of lines) {
+      if (looksLikeCode(line.text)) continue
       const text = stripNoise(line.text)
 
       const defined = matchDefinition(text)
@@ -111,7 +119,10 @@ export function extractTerms(pages) {
         const words = tokenize(chunk)
 
         for (const word of words) {
-          if (!shouting && isAcronym(word)) add(word, 'acronym', pageIndex)
+          if (!shouting && isAcronym(word)) {
+            add(word, 'acronym', pageIndex)
+            acronymsSeen.add(word)
+          }
           else if (isRareWord(word)) add(shouting ? word.toLowerCase() : word, 'rareWord', pageIndex)
         }
 
@@ -145,6 +156,7 @@ export function extractTerms(pages) {
     .slice(0, MAX_TERMS)
     // Single words: "Heisenberg" (always capitalized) vs "glucose" (capitalized only at line start).
     .map((c) => (c.weight === WEIGHT.rareWord && !c.alwaysCapitalized ? c.term.toLowerCase() : c.term))
+    .map((term) => (isAllCapsLine(term) && term.includes(' ') ? titleCase(term, acronymsSeen) : term))
 }
 
 /**
@@ -153,7 +165,8 @@ export function extractTerms(pages) {
  * Body text is never touched, even if a sentence repeats.
  */
 function removeBoilerplate(pages) {
-  const norm = (text) => text.toLowerCase().replace(/\d+/g, '#').replace(/\s+/g, ' ').trim()
+  // Spaces are ignored too: PowerPoint sometimes splits a footer word ("Slid" + "e").
+  const norm = (text) => text.toLowerCase().replace(/\d+/g, '#').replace(/\s+/g, '')
   const inMargin = (l) => l.y < 0.12 || l.y > 0.9
   const isFurniture = (l) => l.text.split(' ').length <= 10 && inMargin(l)
 
@@ -167,7 +180,12 @@ function removeBoilerplate(pages) {
   const boilerplate = new Set(
     [...pagesWithLine].filter(([, n]) => n >= 2 && n > pages.length / 2).map(([key]) => key),
   )
-  return pages.map((lines) => lines.filter((l) => !(isFurniture(l) && boilerplate.has(norm(l.text)))))
+  // A narrow footer box can wrap "Slide 3" into scraps ("Slid", "e 3") that differ
+  // page to page; tiny bottom-margin fragments are never vocabulary.
+  const isFooterScrap = (l) => l.y < 0.12 && (l.text.match(/\p{L}/gu) ?? []).length <= 5
+  return pages.map((lines) =>
+    lines.filter((l) => !(isFurniture(l) && boilerplate.has(norm(l.text))) && !isFooterScrap(l)),
+  )
 }
 
 /** Largest-font line on the page, if it clearly stands out and isn't generic. */
@@ -178,9 +196,10 @@ function findTitle(lines) {
   const top = lines.reduce((best, l) => (l.size > best.size ? l : best))
   if (top.size < median * 1.2) return null
 
-  let title = top.text
+  let title = stripNoise(top.text)
+    .trim()
     .replace(/^(\d+[.)]|[IVX]+\.)\s*/, '') // "3. " / "IV. "
-    .replace(/\s*\((cont\.?|continued)\)\s*$/i, '')
+    .replace(/\s*\((cont\.?|continued|part\s*\d+)\)\s*$/i, '')
   // "Glycolysis: glucose to pyruvate" → "Glycolysis"
   const beforeColon = title.split(':')[0]
   if (beforeColon !== title && tokenize(beforeColon).length <= 4) title = beforeColon
@@ -213,6 +232,9 @@ function isAcronym(word) {
   const uppers = (word.match(/\p{Lu}/gu) ?? []).length
   const hasDigit = /\d/.test(word)
   if (uppers < 2 && !(uppers >= 1 && hasDigit)) return false
+  if (hasDigit && (word.match(/\p{L}/gu) ?? []).length < 2) return false
+  // Written in lowercase elsewhere in the document: it's a word in capitals (a label).
+  if (word.length >= 3 && lowercaseWords.has(word.toLowerCase())) return false
   // "ENERGY" in a shouted sentence is just a word; short ones (DNA) stay acronyms.
   if (word.length >= 4 && word === word.toUpperCase() && rank(word) <= RARE_WORD_RANK) return false
   return true
@@ -227,14 +249,16 @@ function isAllCapsLine(text) {
 /** Runs of 2–4 Capitalized words ("Krebs Cycle", "Law of Mass Action"). */
 function capitalizedPhrases(words) {
   const phrases = []
-  const isCap = (w) => /^\p{Lu}\p{Ll}/u.test(w)
+  const isCap = (w) => /^\p{Lu}\p{Ll}/u.test(w) || /^\p{Lu}[\p{Lu}\p{N}]+$/u.test(w)
+  const isTitleWord = (w) => /^\p{Lu}\p{Ll}/u.test(w)
   const connectors = new Set(['of', 'and', 'de', 'von', 'van'])
 
   let run = []
   const flush = () => {
-    while (run.length && !isCap(run[run.length - 1])) run.pop()
+    while (run.length && !isTitleWord(run[run.length - 1])) run.pop()
     while (run.length && STOPWORDS.has(run[0].toLowerCase())) run.shift()
-    if (run.length >= 2 && run.length <= 4 && hasRareWord(run, RARE_CAP_PHRASE_RANK)) {
+    const titled = run.some(isTitleWord) // "VS Code" yes, "HTML CSS" no
+    if (run.length >= 2 && run.length <= 4 && titled && hasRareWord(run, RARE_CAP_PHRASE_RANK)) {
       phrases.push(run.join(' '))
     }
     run = []
@@ -297,7 +321,7 @@ const splitChunks = (text) => text.split(/[.,;:!?()[\]{}"“”|•·/\\–—]+
 // Words (any alphabet, so "Schrödinger" stays whole), keeping internal hyphens,
 // apostrophes and digits (FADH2, acetyl-CoA).
 const tokenize = (text) =>
-  (text.match(/\p{L}[\p{L}\p{N}'’-]*/gu) ?? []).map((w) => w.replace(/['’-]+$/, ''))
+  (text.match(/\p{L}[\p{L}\p{N}'’-]*/gu) ?? []).map((w) => w.replace(/['’]s$/i, '').replace(/['’-]+$/, ''))
 
 // Case-insensitive, light plural folding: "Kinases" and "kinase" are one term.
 const dedupeKey = (term) =>
@@ -305,3 +329,42 @@ const dedupeKey = (term) =>
     .toLowerCase()
     .replace(/[-\s]+/g, ' ')
     .replace(/(?<![su])s\b/g, '')
+
+/** Lines of code on a slide (HTML tags, JS, CSS) aren't vocabulary. Prose like "a < b" is kept. */
+function looksLikeCode(text) {
+  if (/<[!/]?[a-z][\w-]*[\s>]/i.test(text)) return true // <meta ...>, </h1>, <!DOCTYPE
+  if (/=>|\(\)\s*[{;]|^\s*(import|export|const|let|function|return)\b/.test(text)) return true
+  return (text.match(/[{};=]/g) ?? []).length >= 2
+}
+
+/** "TRADITIONAL WEB APPLICATIONS" → "Traditional Web Applications"; known acronyms stay upper. */
+function titleCase(text, acronyms) {
+  const small = new Set(['a', 'an', 'and', 'as', 'at', 'by', 'for', 'in', 'of', 'on', 'or', 'the', 'to', 'vs'])
+  return text
+    .split(' ')
+    .map((word, i) => {
+      if (acronyms.has(word)) return word
+      const lower = word.toLowerCase()
+      if (i > 0 && small.has(lower)) return lower
+      return lower.charAt(0).toUpperCase() + lower.slice(1)
+    })
+    .join(' ')
+}
+
+/**
+ * Whole lowercase words from prose ("app" in "React app"). File names and code are
+ * skipped, so "index.html" doesn't make HTML look like an ordinary word.
+ */
+function collectLowercaseWords(pages) {
+  const words = new Set()
+  for (const lines of pages) {
+    for (const line of lines) {
+      if (looksLikeCode(line.text)) continue
+      for (const raw of line.text.split(/\s+/)) {
+        const word = raw.replace(/^[("'“‘]+|[)"'”’.,;:!?]+$/g, '')
+        if (/^\p{Ll}+$/u.test(word)) words.add(word)
+      }
+    }
+  }
+  return words
+}
