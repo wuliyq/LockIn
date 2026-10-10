@@ -23,7 +23,8 @@
  */
 
 // Hardcoded placeholder for building and testing without uploading a PDF.
-// Real data comes from <SlidePanel onDeckReady={...} /> (see extractDeckContext.js).
+// Real data comes from <SlidePanel onDeckReady={...} /> (see extractDeckContext.js),
+// which sends null while a newly opened PDF's text is still being read.
 /** @type {DeckContext} */
 export const stubDeckContext = {
   filename: "demo-lecture.pdf",
