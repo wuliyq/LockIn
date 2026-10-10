@@ -12,6 +12,9 @@
 
 .slide-canvas__page {
   display: block;
-  background: #fff;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.12);
+  background: #fff; /* PDF pages are drawn on white regardless of theme */
+  border-radius: calc(var(--radius, 0.625rem) - 4px);
+  box-shadow:
+    0 0 0 1px var(--border, rgba(0, 0, 0, 0.12)),
+    0 6px 20px -12px color-mix(in oklab, var(--foreground, #000) 40%, transparent);
 }

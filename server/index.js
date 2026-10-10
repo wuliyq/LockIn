@@ -2,6 +2,7 @@ import "dotenv/config";
 import cors from "cors";
 import express from "express";
 import { answerConfusion } from "./gemini.js";
+import { addFlag, getDashboardData } from "./sessionStore.js";
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -49,6 +50,39 @@ app.post("/api/confusion", async (req, res) => {
     }
 });
 
+app.post("/api/flags", (req, res) => {
+  const {
+    sessionId,
+    slideNumber,
+    flagType,
+    selectedText,
+    studentComment,
+    aiAnswer,
+  } = req.body;
+
+  if (!sessionId || !slideNumber || !flagType) {
+    return res.status(400).json({
+      error: "sessionId, slideNumber, and flagType are required.",
+    });
+  }
+
+  const savedFlag = addFlag(sessionId, {
+    slideNumber,
+    flagType,
+    selectedText,
+    studentComment,
+    aiAnswer,
+  });
+
+  res.status(201).json({ flag: savedFlag });
+});
+
+app.get("/api/dashboard/:sessionId", (req, res) => {
+  const dashboardData = getDashboardData(req.params.sessionId);
+
+  res.json(dashboardData);
+});
+
 app.listen(port, () => {
-    console.log(`LockIn backend is running at https://localhost:${port}`);
+    console.log(`LockIn backend is running at http://localhost:${port}`);
 });

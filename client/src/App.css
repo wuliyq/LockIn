@@ -1,184 +1,384 @@
-.counter {
-  font-size: 16px;
-  padding: 5px 10px;
-  border-radius: 5px;
-  color: var(--accent);
-  background: var(--accent-bg);
-  border: 2px solid transparent;
-  transition: border-color 0.3s;
-  margin-bottom: 24px;
+/* Sage layout. Colors come from the theme tokens in index.css. */
 
-  &:hover {
-    border-color: var(--accent-border);
-  }
-  &:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-  }
-}
-
-.hero {
-  position: relative;
-
-  .base,
-  .framework,
-  .vite {
-    inset-inline: 0;
-    margin: 0 auto;
-  }
-
-  .base {
-    width: 170px;
-    position: relative;
-    z-index: 0;
-  }
-
-  .framework,
-  .vite {
-    position: absolute;
-  }
-
-  .framework {
-    z-index: 1;
-    top: 34px;
-    height: 28px;
-    transform: perspective(2000px) rotateZ(300deg) rotateX(44deg) rotateY(39deg)
-      scale(1.4);
-  }
-
-  .vite {
-    z-index: 0;
-    top: 107px;
-    height: 26px;
-    width: auto;
-    transform: perspective(2000px) rotateZ(300deg) rotateX(40deg) rotateY(39deg)
-      scale(0.8);
-  }
-}
-
-#center {
+.app {
+  height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 25px;
-  place-content: center;
-  place-items: center;
-  flex-grow: 1;
-
-  @media (max-width: 1024px) {
-    padding: 32px 20px 24px;
-    gap: 18px;
-  }
+  background: var(--background);
+  color: var(--foreground);
 }
 
-#next-steps {
+/* --- Header ------------------------------------------------------------------ */
+
+.app__header {
   display: flex;
-  border-top: 1px solid var(--border);
-  text-align: left;
-
-  & > div {
-    flex: 1 1 0;
-    padding: 32px;
-    @media (max-width: 1024px) {
-      padding: 24px 20px;
-    }
-  }
-
-  .icon {
-    margin-bottom: 16px;
-    width: 22px;
-    height: 22px;
-  }
-
-  @media (max-width: 1024px) {
-    flex-direction: column;
-    text-align: center;
-  }
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.875rem;
+  color: var(--muted-foreground);
 }
 
-#docs {
-  border-right: 1px solid var(--border);
+.app__logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--primary);
+}
 
-  @media (max-width: 1024px) {
-    border-right: none;
+.app__logo .icon {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.app__deck {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app__header-spacer {
+  width: 5.5rem; /* about the logo's width */
+  flex-shrink: 0;
+}
+
+/* --- Two halves ---------------------------------------------------------------- */
+
+.app__body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.app__slides {
+  width: 50%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.5rem 1.5rem 6rem; /* bottom room for the helper button */
+  overflow: auto;
+  border-right: 1px solid var(--border);
+}
+
+/* SlidePanel fills this box and scales the page to fit; the transcript sits below. */
+.app__slide-box {
+  flex: 1;
+  min-height: 18rem;
+}
+
+.app__notes {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 1.5rem;
+}
+
+@media (max-width: 860px) {
+  .app__body {
+    flex-direction: column;
+    overflow: auto;
+  }
+  .app__slides {
+    width: 100%;
+    flex-shrink: 0; /* stacked: take full content height, the page scrolls */
+    min-height: auto;
+    overflow: visible;
+    padding-bottom: 1.5rem;
+    border-right: 0;
     border-bottom: 1px solid var(--border);
   }
+  .app__slide-box {
+    flex: none;
+    height: min(75vw, 26rem);
+    min-height: 0;
+  }
+  .app__header-spacer {
+    display: none;
+  }
+  .app__notes {
+    flex-shrink: 0;
+    min-height: 32rem;
+    padding-bottom: 6rem;
+  }
 }
 
-#next-steps ul {
-  list-style: none;
-  padding: 0;
+/* --- Shared bits --------------------------------------------------------------- */
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+}
+
+.eyebrow {
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+.muted {
+  color: var(--muted-foreground);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  transition: background-color 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.chip:not(:disabled):hover,
+.chip.is-active {
+  background: var(--cue);
+  border-color: var(--cue);
+  color: var(--cue-foreground);
+}
+
+.btn-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0 1rem;
+  border-radius: 999px;
+  background: var(--flag);
+  color: var(--flag-foreground);
+  font-size: 0.875rem;
+}
+
+/* --- Notes --------------------------------------------------------------------- */
+
+.notes__meta {
   display: flex;
-  gap: 8px;
-  margin: 32px 0 0;
-
-  .logo {
-    height: 18px;
-  }
-
-  a {
-    color: var(--text-h);
-    font-size: 16px;
-    border-radius: 6px;
-    background: var(--social-bg);
-    display: flex;
-    padding: 6px 12px;
-    align-items: center;
-    gap: 8px;
-    text-decoration: none;
-    transition: box-shadow 0.3s;
-
-    &:hover {
-      box-shadow: var(--shadow);
-    }
-    .button-icon {
-      height: 18px;
-      width: 18px;
-    }
-  }
-
-  @media (max-width: 1024px) {
-    margin-top: 20px;
-    flex-wrap: wrap;
-    justify-content: center;
-
-    li {
-      flex: 1 1 calc(50% - 8px);
-    }
-
-    a {
-      width: 100%;
-      justify-content: center;
-      box-sizing: border-box;
-    }
-  }
+  gap: 0.375rem;
+  margin: 0 0 0.5rem;
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+  min-width: 0;
 }
 
-#spacer {
-  height: 88px;
-  border-top: 1px solid var(--border);
-  @media (max-width: 1024px) {
-    height: 48px;
-  }
+.notes__slide {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.ticks {
-  position: relative;
+.notes__editor {
+  flex: 1;
   width: 100%;
+  min-height: 12rem;
+  padding: 1.5rem;
+  resize: none;
+  outline: none;
+  font-size: 1.125rem;
+  line-height: 2rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  transition: border-color 0.15s;
+}
 
-  &::before,
-  &::after {
-    content: '';
-    position: absolute;
-    top: -4.5px;
-    border: 5px solid transparent;
-  }
+.notes__editor:focus {
+  border-color: var(--primary);
+}
 
-  &::before {
-    left: 0;
-    border-left-color: var(--border);
-  }
-  &::after {
-    right: 0;
-    border-right-color: var(--border);
-  }
+.notes__editor::placeholder,
+.notes__flag-form input::placeholder {
+  color: var(--muted-foreground);
+  opacity: 0.8;
+}
+
+.notes__flag-form {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.notes__flag-form input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+
+.notes__flag-count {
+  margin: 0.5rem 0 0 1rem;
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+}
+
+/* --- Transcript ---------------------------------------------------------------- */
+
+.transcript {
+  padding: 1rem;
+  flex-shrink: 0;
+}
+
+.transcript__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.transcript__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  background: var(--muted);
+  font-size: 0.75rem;
+}
+
+.transcript__toggle.is-on {
+  background: var(--flag);
+  color: var(--flag-foreground);
+}
+
+.transcript__lines {
+  max-height: 7rem;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.875rem;
+}
+
+.transcript__empty {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+}
+
+.transcript__line {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.transcript__line button {
+  margin-top: 0.125rem;
+  color: var(--cue);
+  opacity: 0.4;
+}
+
+.transcript__line:hover button,
+.transcript__line button:focus-visible {
+  opacity: 1;
+}
+
+.transcript__line span {
+  color: color-mix(in oklab, var(--foreground) 80%, transparent);
+}
+
+/* --- Chat helper (bottom-left) ------------------------------------------------- */
+
+.helper {
+  position: fixed;
+  left: 1.25rem;
+  bottom: 1.25rem;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.helper__panel {
+  width: min(20rem, calc(100vw - 2.5rem));
+  overflow: hidden;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  box-shadow: var(--shadow-float);
+}
+
+.helper__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-weight: 500;
+}
+
+.helper__head span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.helper__body {
+  max-height: 20rem;
+  overflow: auto;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  font-size: 0.875rem;
+}
+
+.helper__body p {
+  margin: 0;
+}
+
+.helper__answer {
+  padding: 0.75rem;
+  border-radius: 0.75rem;
+  background: var(--muted);
+}
+
+.helper__answer b {
+  display: block;
+  margin-bottom: 0.25rem;
+  color: var(--primary);
+}
+
+.helper__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+
+.helper__fab {
+  width: 3.5rem;
+  height: 3.5rem;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  box-shadow: var(--shadow-float);
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.helper__fab:hover {
+  background: var(--cue);
+  color: var(--cue-foreground);
+}
+
+.helper__fab .icon {
+  width: 1.5rem;
+  height: 1.5rem;
 }

@@ -64,8 +64,11 @@ placeholder (`import { stubDeckContext } from './slides'`).
 ## Styling
 
 The panel fills its container (100% width and height), so give that box a height through
-your layout. It inherits your font and text color. Every class starts with `slide-panel`
-or `slide-canvas`, so you can restyle it from your own CSS:
+your layout. Its colors, borders and radius come from the app's theme variables in
+`src/index.css` (`--card`, `--foreground`, `--muted-foreground`, `--primary`, `--border`,
+`--cue`, `--flag`, `--notice`, `--radius`, `--shadow-card`, `--font-display`), so restyling
+the theme restyles the panel. Every class starts with `slide-panel`
+or `slide-canvas` if you need to target something specific:
 
 | Class | Element |
 | --- | --- |
