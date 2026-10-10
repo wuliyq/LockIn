@@ -1,0 +1,100 @@
+{
+  "sessionId": "demo-biol101-lecture12",
+  "title": "BIOL 101 Lecture 12: Cellular Respiration",
+  "duration": "30:00",
+  "studentCount": 14,
+  "slides": [
+    {
+      "start": "0:00",
+      "text": "Cellular Respiration Overview\nBIOL 101 Lecture 12"
+    },
+    {
+      "start": "2:30",
+      "text": "Glycolysis\nOccurs in the cytoplasm\nGlucose (6C) is split into two pyruvate (3C)\nNet yield: 2 ATP, 2 NADH\nNo oxygen required"
+    },
+    {
+      "start": "8:00",
+      "text": "Pyruvate Oxidation\nPyruvate enters the mitochondrion\nConverted to acetyl-CoA, releasing CO2\nProduces NADH"
+    },
+    {
+      "start": "11:30",
+      "text": "Krebs Cycle (Citric Acid Cycle)\nTakes place in the mitochondrial matrix\nEach turn yields 3 NADH, 1 FADH2, 1 ATP\nTwo turns per glucose"
+    },
+    {
+      "start": "19:00",
+      "text": "Electron Transport Chain\nLocated in the inner mitochondrial membrane\nNADH and FADH2 donate electrons\nProton gradient drives ATP synthase\nOxygen is the final electron acceptor"
+    },
+    {
+      "start": "25:30",
+      "text": "Oxidative Phosphorylation\nChemiosmosis produces roughly 26 to 28 ATP\nTotal yield per glucose: about 30 to 32 ATP"
+    }
+  ],
+  "transcript": [
+    { "start": "0:00", "text": "Okay, let's get started. Today is cellular respiration, which is how your cells take the glucose you ate for breakfast and turn it into something they can actually spend, which is ATP." },
+    { "start": "1:15", "text": "The roadmap is four stages: glycolysis, pyruvate oxidation, the Krebs cycle, and then the electron transport chain with oxidative phosphorylation. Keep an eye on where each one happens in the cell, because that comes up on the exam." },
+    { "start": "2:30", "text": "Stage one, glycolysis. This happens in the cytoplasm, outside the mitochondria, and it doesn't need oxygen at all. That's why it's ancient; bacteria were doing this before there was oxygen in the atmosphere." },
+    { "start": "3:40", "text": "We start with glucose, six carbons, and split it into two molecules of pyruvate, three carbons each. Along the way the cell actually spends two ATP up front to destabilise the glucose, which feels backwards, but it's an investment." },
+    { "start": "4:50", "text": "Then the payoff phase makes four ATP and two NADH. Four made minus two spent gives you a net of two ATP. When the slide says net yield, that's what net means." },
+    { "start": "6:00", "text": "NADH is the thing to watch today. Think of it as a charged battery. It's carrying high-energy electrons, and we're going to cash those in at the very end." },
+    { "start": "7:00", "text": "Quick recap: glucose in, two pyruvate out, a small amount of ATP, a couple of charged batteries. Most of the energy is still locked up in the pyruvate." },
+    { "start": "8:00", "text": "Stage two, pyruvate oxidation. The pyruvate gets transported into the mitochondrion. This is the bridge between glycolysis and the Krebs cycle." },
+    { "start": "9:10", "text": "Each pyruvate loses one carbon as CO2. That's some of the carbon dioxide you breathe out. What's left is a two-carbon acetyl group, which gets attached to coenzyme A to make acetyl-CoA." },
+    { "start": "10:20", "text": "And we load one more NADH per pyruvate here. So per glucose that's two acetyl-CoA, two CO2 and two NADH. Acetyl-CoA is the ticket into the next stage." },
+    { "start": "11:30", "text": "Stage three, the Krebs cycle, also called the citric acid cycle. It runs in the mitochondrial matrix, the innermost compartment." },
+    { "start": "12:30", "text": "Acetyl-CoA hands its two carbons to oxaloacetate, a four-carbon molecule, to make citrate, six carbons. That's why it's called the citric acid cycle." },
+    { "start": "13:30", "text": "Then citrate is rearranged to isocitrate, isocitrate is oxidised to alpha-ketoglutarate and we lose a CO2 and make an NADH, alpha-ketoglutarate goes to succinyl-CoA, we lose another CO2, another NADH." },
+    { "start": "14:30", "text": "Succinyl-CoA to succinate makes one ATP, or GTP depending on the tissue, succinate to fumarate makes FADH2, fumarate to malate, malate back to oxaloacetate with the third NADH, and we're back where we started." },
+    { "start": "15:30", "text": "So that's eight steps. You don't need every enzyme name, but you do need to be able to count what comes out. Six carbons came in, two left as CO2, and the four-carbon oxaloacetate is regenerated." },
+    { "start": "16:30", "text": "Per turn: three NADH, one FADH2, one ATP, two CO2. And it turns twice per glucose because we had two acetyl-CoA, so double all of that." },
+    { "start": "17:30", "text": "If you add it up, by the end of the Krebs cycle every carbon from the original glucose has left as CO2. The glucose is fully oxidised, but we've made very little ATP directly. The energy is sitting in NADH and FADH2." },
+    { "start": "18:15", "text": "Which sets up the most important part of today, because that's where the ATP actually comes from." },
+    { "start": "19:00", "text": "Stage four, the electron transport chain. It's a series of protein complexes embedded in the inner mitochondrial membrane, the folded one, the cristae." },
+    { "start": "20:00", "text": "NADH and FADH2 drop off their electrons at the start of the chain. The electrons get passed from complex to complex, going downhill in energy each time, and at the very end oxygen accepts them and forms water." },
+    { "start": "21:00", "text": "As the electrons move, the complexes use that energy to pump protons, H plus ions, from the matrix into the intermembrane space. So you build up a proton gradient across the membrane, and then ATP synthase uses it. Okay." },
+    { "start": "22:00", "text": "So that's chemiosmosis, the gradient drives the synthase and that makes ATP. Moving on to the role of oxygen." },
+    { "start": "23:00", "text": "Oxygen is the final electron acceptor. Without it the chain backs up, NADH can't unload, and the whole process stalls. That's why you die without oxygen in a matter of minutes." },
+    { "start": "24:15", "text": "Cyanide, for example, blocks the last complex in the chain. Electrons can't reach oxygen, so the cell can't make ATP even though there's plenty of oxygen around." },
+    { "start": "25:30", "text": "Last slide, oxidative phosphorylation, which is the ATP-making part of what we just saw. Chemiosmosis gives roughly 26 to 28 ATP." },
+    { "start": "26:30", "text": "Each NADH is worth about two and a half ATP and each FADH2 about one and a half, and you combine that with the substrate-level ATP from earlier, so the total per glucose is about 30 to 32 ATP." },
+    { "start": "27:30", "text": "Older textbooks say 36 or 38. The number came down as we measured the proton costs more carefully, so don't panic if your high school notes disagree." },
+    { "start": "28:30", "text": "Big picture: glycolysis and Krebs strip electrons off glucose and load them onto NADH and FADH2, and the electron transport chain cashes those electrons in for most of the ATP." },
+    { "start": "29:20", "text": "Next time we'll look at what happens when there's no oxygen, which is fermentation. Read section 9.5 before Thursday." }
+  ],
+  "flags": [
+    { "student": "s03", "type": "confusing", "at": "4:10", "text": "is the 2 ATP net or total?" },
+    { "student": "s07", "type": "catch_up", "at": "6:30" },
+
+    { "student": "s13", "type": "confusing", "at": "7:20" },
+    { "student": "s13", "type": "confusing", "at": "7:30" },
+    { "student": "s13", "type": "confusing", "at": "7:45" },
+
+    { "student": "s02", "type": "real_world", "at": "9:40" },
+    { "student": "s09", "type": "real_world", "at": "10:50" },
+
+    { "student": "s02", "type": "real_world", "at": "13:00" },
+    { "student": "s06", "type": "real_world", "at": "14:40" },
+    { "student": "s11", "type": "real_world", "at": "16:00" },
+    { "student": "s13", "type": "real_world", "at": "18:30" },
+    { "student": "s11", "type": "worked_example", "at": "16:10" },
+
+    { "student": "s01", "type": "catch_up", "at": "15:50" },
+    { "student": "s04", "type": "catch_up", "at": "16:20" },
+    { "student": "s05", "type": "catch_up", "at": "16:40" },
+    { "student": "s08", "type": "catch_up", "at": "17:05" },
+    { "student": "s10", "type": "catch_up", "at": "17:30" },
+    { "student": "s05", "type": "catch_up", "at": "17:50" },
+    { "student": "s12", "type": "catch_up", "at": "18:10" },
+
+    { "student": "s01", "type": "confusing", "at": "22:05" },
+    { "student": "s03", "type": "confusing", "at": "22:20", "text": "wait why do protons flowing back make ATP? he skipped that part" },
+    { "student": "s06", "type": "confusing", "at": "22:30", "text": "sorry if this is a dumb question but what is the proton gradient actually a gradient of" },
+    { "student": "s09", "type": "confusing", "at": "22:45", "text": "so is ATP synthase pumping protons or are the protons pumping it??" },
+    { "student": "s14", "type": "confusing", "at": "23:10", "text": "i still dont get chemiosmosis lol" },
+    { "student": "s10", "type": "confusing", "at": "24:40" },
+
+    { "student": "s02", "type": "worked_example", "at": "27:00", "text": "where does 26-28 come from" },
+    { "student": "s04", "type": "worked_example", "at": "27:40" },
+    { "student": "s07", "type": "worked_example", "at": "28:10", "text": "can we do the ATP count step by step for one glucose" },
+    { "student": "s12", "type": "worked_example", "at": "28:50" }
+  ]
+}

@@ -12,6 +12,11 @@ function getOrCreateSession(sessionId) {
     return sessions.get(sessionId);
 }
 
+/** Stores a whole prepared session, replacing any with the same id. Used by the seed loader. */
+export function putSession(session) {
+    sessions.set(session.sessionId, session);
+}
+
 export function addFlag(sessionId, flag) {
     const session = getOrCreateSession(sessionId);
 

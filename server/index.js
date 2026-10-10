@@ -3,6 +3,14 @@ import cors from "cors";
 import express from "express";
 import { answerConfusion, summarizeRecentTranscript } from "./gemini.js";
 import { addFlag, getDashboardData } from "./sessionStore.js";
+import { loadSeed } from "./seed/loadSeed.js";
+
+// A broken seed file shouldn't take down the student side, so log and keep booting.
+try {
+    for (const s of loadSeed()) console.log(`Seeded demo session ${s.sessionId} (${s.flags.length} flags)`);
+} catch (error) {
+    console.error("Could not load seed data:", error.message);
+}
 
 const app = express();
 const port = process.env.PORT || 3001;
