@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { extractDeckContext } from './extractDeckContext'
-import { checkPdfFile, closePdf, describeLoadError, loadPdf } from './loadPdf'
+import { extractDeckContext } from '../extraction/extractDeckContext'
+import { checkPdfFile, closePdf, describeLoadError, loadPdf } from '../pdf/loadPdf'
 import SlideCanvas from './SlideCanvas'
 import './SlidePanel.css'
 
@@ -20,7 +20,7 @@ const debugLog = (...args) => import.meta.env.DEV && console.log(...args)
  *
  * @param {Object} props
  * @param {number} [props.index]  0-based page to show (controlled mode)
- * @param {(deck: import('./stubDeckContext').DeckContext | null) => void} [props.onDeckReady]
+ * @param {(deck: import('../contract/stubDeckContext').DeckContext | null) => void} [props.onDeckReady]
  *   Called with null the moment a new PDF opens (its text is still being read, so
  *   the previous deck no longer matches what's on screen), then once more with the
  *   extracted DeckContext. A failed upload calls neither; the current deck stays.

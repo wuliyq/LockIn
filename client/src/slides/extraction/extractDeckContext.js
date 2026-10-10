@@ -7,7 +7,7 @@ import { extractTerms } from './extractTerms'
  *
  * @param {import('pdfjs-dist').PDFDocumentProxy} doc
  * @param {string} filename
- * @returns {Promise<import('./stubDeckContext').DeckContext>}
+ * @returns {Promise<import('../contract/stubDeckContext').DeckContext>}
  */
 export async function extractDeckContext(doc, filename) {
   const pages = []

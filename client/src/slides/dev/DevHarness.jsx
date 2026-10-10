@@ -4,7 +4,7 @@
 // index (controlled mode), notes are one page per slide keyed by deck + slide, and the
 // readouts show exactly what other roles would receive.
 import { useState } from 'react'
-import SlidePanel from './SlidePanel'
+import { SlidePanel } from '..'
 
 // Roughly the size of the top-left panel in the three-panel layout.
 const boxStyle = {
