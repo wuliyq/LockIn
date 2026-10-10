@@ -260,7 +260,7 @@ function countPhrases(words, phraseCounts, pageIndex) {
       if (gram.some((w) => w.length < 2)) continue // "log n"
       // The rare word must be a real word, not an acronym already captured ("make ATP").
       if (!hasRareWord(gram.filter((w) => !isAcronym(w)), RARE_WORD_RANK)) continue
-      const display = gram.join(' ').toLowerCase()
+      const display = gram.map((w) => (isAcronym(w) ? w : w.toLowerCase())).join(' ') // "ATP synthase"
       const key = dedupeKey(display) // "binary search trees" counts toward "binary search tree"
       const entry = phraseCounts.get(key) ?? { display, count: 0, pages: new Set() }
       entry.count++

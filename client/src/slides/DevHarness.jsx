@@ -49,8 +49,8 @@ export default function DevHarness() {
           <h4 style={{ marginBottom: 6 }}>Terms ({deck.terms.length})</h4>
           <div>
             {deck.terms.length === 0 && <i>none</i>}
-            {deck.terms.map((term) => (
-              <span key={term} style={termStyle}>
+            {deck.terms.map((term, i) => (
+              <span key={i} style={termStyle}>
                 {term}
               </span>
             ))}

@@ -15,7 +15,7 @@ export async function extractDeckContext(doc, filename) {
     const page = await doc.getPage(pageNum)
     const content = await page.getTextContent()
     const [, yMin, , yMax] = page.view // page box in PDF units
-    pages.push(itemsToLines(content.items, yMin, yMax - yMin))
+    pages.push(itemsToLines(content.items, yMin, yMax - yMin || 1))
   }
 
   const slides = pages.map((lines, index) => ({

@@ -28,7 +28,15 @@ export default function SlidePanel({ onDeckReady, onSlideChange }) {
   // Bumped on every upload; work that finishes after a newer upload started is discarded.
   const loadIdRef = useRef(0)
 
-  useEffect(() => () => closePdf(docRef.current), [])
+  useEffect(
+    () => () => {
+      // Unmounting mid-upload: mark in-flight work stale so it frees its doc and
+      // never calls onDeckReady from a panel that's gone.
+      loadIdRef.current++
+      closePdf(docRef.current)
+    },
+    [],
+  )
 
   async function handleFile(e) {
     const file = e.target.files?.[0]
