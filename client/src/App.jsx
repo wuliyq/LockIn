@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   FlagIcon,
+  ChatIcon,
   HelpIcon,
   LightbulbIcon,
   LockIcon,
@@ -13,31 +14,38 @@ import {
 import { AI_LABELS, FLAG_TYPES, useLockIn } from './lockin/useLockIn'
 import SelectionFlagger from './lockin/SelectionFlagger'
 import { SlidePanel } from './slides'
-import SessionLobby from './city/SessionLobby'
 import './App.css'
 
 const AI_ICONS = { catchup: ZapIcon, example: LightbulbIcon, check: HelpIcon, why: TargetIcon }
 
 export default function App({ user, lectureApi, onHome }) {
   const li = useLockIn({ user, lectureApi })
+  const { sessionActive, startSession } = li
   const [pendingSelection, setPendingSelection] = useState(null)
   const [ending, setEnding] = useState(false)
   const [sessionError, setSessionError] = useState('')
-  const { bodyRef, slideWidth, guideWidth, resizing, beginResize, resizeByKey } = usePanelResize()
+  const startRequested = useRef(false)
+  const { bodyRef, slideWidth, resizing, beginResize, resizeByKey } = usePanelResize()
 
-  const startFocusSession = async (recordAudio = false, options = {}) => {
+  useEffect(() => {
+    if (sessionActive || startRequested.current) return
+    startRequested.current = true
     setPendingSelection(null)
     setSessionError('')
-    await li.startSession(options)
-    if (recordAudio && !li.listening && li.transcriptStatus !== 'connecting') await li.toggleListen()
-  }
+    startSession().catch((error) => setSessionError(`Could not start a new lecture: ${error.message}`))
+  }, [sessionActive, startSession])
 
   const finishLecture = async () => {
     setEnding(true)
     setSessionError('')
-    try { await li.endSession() }
-    catch (error) { setSessionError(`Could not finish the session: ${error.message}`) }
-    finally { setEnding(false) }
+    try {
+      await li.endSession()
+      onHome()
+    } catch (error) {
+      setSessionError(`Could not finish the session: ${error.message}`)
+    } finally {
+      setEnding(false)
+    }
   }
 
   const addSlideHighlight = (rect) => {
@@ -50,7 +58,14 @@ export default function App({ user, lectureApi, onHome }) {
     })
   }
 
-  if (!li.sessionActive) return <SessionLobby li={li} onStart={startFocusSession} onHome={onHome} preview={user.preview} />
+  if (!sessionActive) return (
+    <main className="theme-sage session-launch" aria-live="polite">
+      <LockIcon />
+      <h1>Starting a new lecture…</h1>
+      <p>{sessionError || 'Preparing your notes, slides, and study tools.'}</p>
+      {sessionError && <><button type="button" onClick={() => { startRequested.current = true; setSessionError(''); startSession().catch((error) => setSessionError(`Could not start a new lecture: ${error.message}`)) }}>Try again</button><button type="button" onClick={onHome}>Back to my lectures</button></>}
+    </main>
+  )
 
   return (
     <div className="theme-sage app app--lecture is-focusing is-quiet">
@@ -62,7 +77,6 @@ export default function App({ user, lectureApi, onHome }) {
           {li.reading ? 'Reading slides…' : (li.deck?.filename ?? 'Lecture workspace')}
         </span>
         <div className="app__session">
-          <span className="app__student"><span aria-hidden="true">{li.citizen.emoji}</span>{li.profileName.trim() || 'My session'}</span>
           <span className="app__focus-state">
             {formatDuration(li.sessionSeconds)}
           </span>
@@ -76,7 +90,7 @@ export default function App({ user, lectureApi, onHome }) {
       <div
         className={`app__body ${resizing ? 'is-resizing' : ''}`}
         ref={bodyRef}
-        style={{ '--slides-track': `${slideWidth}fr`, '--notes-track': `${100 - slideWidth - guideWidth}fr`, '--guide-track': `${guideWidth}fr` }}
+        style={{ '--slides-track': `${slideWidth}fr`, '--notes-track': `${100 - slideWidth}fr` }}
       >
         <section className="app__slides" aria-label="Lecture slides">
           <div className="workspace-sign"><strong>Slides</strong></div>
@@ -90,6 +104,7 @@ export default function App({ user, lectureApi, onHome }) {
               }}
               highlights={li.slideHighlights}
               onHighlight={addSlideHighlight}
+              onRemoveHighlight={li.removeSlideHighlight}
             />
           </div>
         </section>
@@ -101,9 +116,9 @@ export default function App({ user, lectureApi, onHome }) {
           aria-orientation="vertical"
           tabIndex={0}
           aria-valuenow={Math.round(slideWidth)}
-          aria-valuemin={28}
-          aria-valuemax={Math.min(52, 72 - guideWidth)}
-          onKeyDown={(event) => resizeByKey(event, 'slides')}
+          aria-valuemin={35}
+          aria-valuemax={65}
+          onKeyDown={resizeByKey}
           onPointerDown={(event) => beginResize(event, 'slides')}
         />
 
@@ -117,23 +132,8 @@ export default function App({ user, lectureApi, onHome }) {
           />
         </section>
 
-        <div
-          className="app__resize-handle app__resize-handle--guide"
-          role="separator"
-          aria-label="Resize notes and city guide panels"
-          aria-orientation="vertical"
-          tabIndex={0}
-          aria-valuenow={Math.round(guideWidth)}
-          aria-valuemin={18}
-          aria-valuemax={Math.min(32, 72 - slideWidth)}
-          onKeyDown={(event) => resizeByKey(event, 'guide')}
-          onPointerDown={(event) => beginResize(event, 'guide')}
-        />
-
-        <aside className="app__guide" aria-label="Study helper">
-          <Helper li={li} />
-        </aside>
       </div>
+      <Helper li={li} />
     </div>
   )
 }
@@ -274,7 +274,7 @@ function FlagHistory({ flags, onGoToSlide }) {
 }
 
 function Helper({ li }) {
-  const [panel, setPanel] = useState({ open: true, seen: null })
+  const [panel, setPanel] = useState({ open: false, seen: null })
   const notification = li.aiError || li.ai
   const open = panel.open || Boolean(notification && notification !== panel.seen)
   const setOpen = (shown) => setPanel({ open: shown, seen: notification })
@@ -284,16 +284,16 @@ function Helper({ li }) {
       {open && (
         <div className="helper__panel" role="region" aria-label="LockIN study helper">
           <div className="helper__head">
-            <span><span className="helper__citizen">{li.citizen.emoji}</span> Study helper</span>
+            <span><span className="helper__citizen">✦</span> Study helper</span>
             <button type="button" onClick={() => setOpen(false)} aria-label="Close helper"><XIcon /></button>
           </div>
           <div className="helper__body" aria-live="polite">
             <p className="helper__status">
               {li.listening ? '● Recording lecture audio' : 'Ready when you need a hand.'}
             </p>
-            {!li.ai && !li.aiLoading && <div className="helper__welcome"><strong>Here for the tricky parts.</strong><p>Highlight a slide or a passage in your notes to ask a question. Use catch-up when you need to find your place.</p></div>}
+            {!li.ai && !li.aiLoading && <div className="helper__welcome"><span aria-hidden="true">✦</span><strong>Here for the tricky parts.</strong><p>Highlight a slide or a passage in your notes to ask a question. Use catch-up when you need to find your place.</p></div>}
             {li.transcriptError && <p className="helper__error">{li.transcriptError}</p>}
-            {li.aiLoading && <p className="helper__thinking"><span aria-hidden="true">{li.citizen.emoji}</span> Looking through our notes<span className="helper__dots" aria-hidden="true"><i /><i /><i /></span></p>}
+            {li.aiLoading && <p className="helper__thinking"><span aria-hidden="true">✦</span> Looking through our notes<span className="helper__dots" aria-hidden="true"><i /><i /><i /></span></p>}
             {li.ai && !li.aiLoading && (
               <div className="helper__answer">
                 <b>{li.ai.label ?? AI_LABELS[li.ai.kind]} · slide {li.ai.slide + 1}</b>
@@ -332,7 +332,7 @@ function Helper({ li }) {
         aria-label="Open study helper"
         aria-expanded={open}
       >
-        <span className="helper__avatar">{li.citizen.emoji}</span>
+        <ChatIcon />
       </button>}
     </div>
   )
@@ -341,7 +341,6 @@ function Helper({ li }) {
 function usePanelResize() {
   const bodyRef = useRef(null)
   const [slideWidth, setSlideWidth] = useState(40)
-  const [guideWidth, setGuideWidth] = useState(23)
   const [resizing, setResizing] = useState(null)
 
   useEffect(() => {
@@ -349,13 +348,8 @@ function usePanelResize() {
     const update = (event) => {
       const rect = bodyRef.current?.getBoundingClientRect()
       if (!rect) return
-      if (resizing === 'slides') {
-        const next = ((event.clientX - rect.left) / rect.width) * 100
-        setSlideWidth(Math.min(52, 72 - guideWidth, Math.max(28, next)))
-      } else {
-        const next = ((rect.right - event.clientX) / rect.width) * 100
-        setGuideWidth(Math.min(32, 72 - slideWidth, Math.max(18, next)))
-      }
+      const next = ((event.clientX - rect.left) / rect.width) * 100
+      setSlideWidth(Math.min(65, Math.max(35, next)))
     }
     const stop = () => setResizing(false)
     window.addEventListener('pointermove', update)
@@ -366,19 +360,17 @@ function usePanelResize() {
       window.removeEventListener('pointerup', stop)
       window.removeEventListener('pointercancel', stop)
     }
-  }, [resizing, slideWidth, guideWidth])
+  }, [resizing])
 
   return {
     bodyRef,
     slideWidth,
-    guideWidth,
     resizing,
-    resizeByKey: (event, panel) => {
+    resizeByKey: (event) => {
       if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return
       event.preventDefault()
       const step = event.key === 'ArrowRight' ? 2 : -2
-      if (panel === 'slides') setSlideWidth(Math.min(52, 72 - guideWidth, Math.max(28, slideWidth + step)))
-      else setGuideWidth(Math.min(32, 72 - slideWidth, Math.max(18, guideWidth - step)))
+      setSlideWidth(Math.min(65, Math.max(35, slideWidth + step)))
     },
     beginResize: (event, panel) => {
       event.preventDefault()

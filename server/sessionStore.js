@@ -69,3 +69,14 @@ export function getDashboardData(sessionId) {
     };
 }
 
+
+export function getFlags(sessionId) {
+    return getOrCreateSession(sessionId).flags;
+}
+
+/** Replace a session's flags (used to load the sample lecture). */
+export function replaceFlags(sessionId, flags) {
+    const session = getOrCreateSession(sessionId);
+    session.flags = flags.map((flag) => ({ id: crypto.randomUUID(), ...flag }));
+    return session.flags;
+}

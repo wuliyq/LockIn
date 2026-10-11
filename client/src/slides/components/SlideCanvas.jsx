@@ -6,7 +6,7 @@ import './SlideCanvas.css'
  * Draws one PDF page sharply inside its container. The transparent layer above it
  * lets students drag across an area they want to revisit, without modifying the PDF.
  */
-export default function SlideCanvas({ doc, index, highlights = [], onHighlight }) {
+export default function SlideCanvas({ doc, index, highlights = [], onHighlight, onRemoveHighlight }) {
   const boxRef = useRef(null)
   const canvasRef = useRef(null)
   const taskRef = useRef(null)
@@ -141,7 +141,18 @@ export default function SlideCanvas({ doc, index, highlights = [], onHighlight }
                 className={`slide-canvas__highlight ${highlight.flagType ? 'is-flagged' : ''}`}
                 style={toStyle(highlight.rect)}
                 title={highlight.flagType ? `Flagged: ${highlight.flagType}` : 'Slide highlight'}
-              />
+              >
+                <button
+                  type="button"
+                  className="slide-canvas__remove-highlight"
+                  aria-label="Remove slide highlight"
+                  title="Remove highlight"
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onClick={(event) => { event.stopPropagation(); onRemoveHighlight?.(highlight.id) }}
+                >
+                  ×
+                </button>
+              </div>
             ))}
             {draft && <div className="slide-canvas__highlight is-draft" style={toStyle(draft)} />}
           </div>

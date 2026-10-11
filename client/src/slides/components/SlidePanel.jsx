@@ -28,7 +28,7 @@ const debugLog = (...args) => import.meta.env.DEV && console.log(...args)
  *   Called on every navigation and with 0 when a new PDF opens; index is 0-based,
  *   timestamp is Date.now().
  */
-export default function SlidePanel({ index: controlledIndex, onDeckReady, onSlideChange, highlights, onHighlight }) {
+export default function SlidePanel({ index: controlledIndex, onDeckReady, onSlideChange, highlights, onHighlight, onRemoveHighlight }) {
   const [pdf, setPdf] = useState(null) // { doc, filename } currently shown
   const [deck, setDeck] = useState(null) // DeckContext for `pdf`; null while its text is read
   const [opening, setOpening] = useState(null) // filename of an upload still opening
@@ -193,7 +193,7 @@ export default function SlidePanel({ index: controlledIndex, onDeckReady, onSlid
       {errorLine}
 
       <div className="slide-panel__stage">
-        <SlideCanvas doc={pdf.doc} index={index} highlights={highlights} onHighlight={onHighlight} />
+        <SlideCanvas doc={pdf.doc} index={index} highlights={highlights} onHighlight={onHighlight} onRemoveHighlight={onRemoveHighlight} />
       </div>
 
       <div className="slide-panel__nav">

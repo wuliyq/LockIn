@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 import { ElevenLabsSTT } from './stt'
-import { useCity } from '../city/useCity'
 
 export const AI_LABELS = {
   catchup: 'Catch me up',
@@ -28,14 +27,6 @@ export const FLAG_TYPES = {
   },
 }
 
-export const CITY_CITIZENS = [
-  { id: 'otter', emoji: '🦦', name: 'Ollie the Otter', district: 'Riverside' },
-  { id: 'capybara', emoji: '🦫', name: 'Cappy the Capybara', district: 'Garden Quarter' },
-  { id: 'fox', emoji: '🦊', name: 'Fenn the Fox', district: 'Library Lane' },
-  { id: 'penguin', emoji: '🐧', name: 'Pip the Penguin', district: 'Harbour Walk' },
-  { id: 'cat', emoji: '🐱', name: 'Miso the Cat', district: 'Sunset Square' },
-]
-
 const HELPER_PROMPTS = {
   example: 'Give one short, concrete example of this idea.',
   check: 'Give me one quick understanding check about this slide, with the answer hidden in your explanation.',
@@ -48,7 +39,6 @@ const HELPER_PROMPTS = {
  */
 export function useLockIn({ user, lectureApi }) {
   const storageKey = (name) => `lockin.user.${user.id}.${name}`
-  const city = useCity(storageKey('city.v1'))
   const apiRequest = lectureApi.request
   const [deck, setDeck] = useState(null)
   const [reading, setReading] = useState(false)
@@ -65,11 +55,6 @@ export function useLockIn({ user, lectureApi }) {
   const [sessionActive, setSessionActive] = useState(false)
   const [sessionStartedAt, setSessionStartedAt] = useState(null)
   const [sessionSeconds, setSessionSeconds] = useState(0)
-  const [citizenId, setCitizenId] = useStored(storageKey('cityCitizen'), CITY_CITIZENS[0].id)
-  const [gameEnabled, setGameEnabled] = useStored(storageKey('gameEnabled'), false)
-  const [profileName, setProfileName] = useStored(storageKey('profileName'), user.name)
-  const [sessionStartXp, setSessionStartXp] = useState(city.xp)
-  const [lastSession, setLastSession] = useState(null)
   const [catchUps, setCatchUps] = useState([])
   const [syncStatus, setSyncStatus] = useState('')
   const [syncError, setSyncError] = useState('')
@@ -83,7 +68,6 @@ export function useLockIn({ user, lectureApi }) {
   const slideText = deck?.slides[current]?.text ?? ''
   const title = slideText.split('\n', 1)[0].trim()
   const note = notesByDeck[notesKey]?.[current] ?? ''
-  const citizen = CITY_CITIZENS.find((entry) => entry.id === citizenId) ?? CITY_CITIZENS[0]
 
   // Serialize writes so a slow autosave cannot overwrite the finished lecture.
   const snapshot = () => ({ filename: deckKey, slides: deck?.slides || [], notes: notesByDeck[notesKey] || {},
@@ -125,14 +109,12 @@ export function useLockIn({ user, lectureApi }) {
     setReading(nextDeck === null)
     setAi(null)
     setAiError('')
-    if (nextDeck && gameEnabled) city.reward('deck', nextDeck.filename, 0)
   }
   const onSlideChange = (index) => setCurrent(index)
 
   const setNote = (text) => {
     setNotesByDeck((all) => ({ ...all, [notesKey]: { ...all[notesKey], [current]: text } }))
     setSavedAt(new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }))
-    if (gameEnabled && text.trim().split(/\s+/).filter(Boolean).length >= 20) city.reward('note', deckKey, current)
   }
 
   const insertLine = (line) => setNote((note ? `${note}\n` : '') + line)
@@ -150,8 +132,6 @@ export function useLockIn({ user, lectureApi }) {
     setAi(null)
     setAiError('')
     setSessionSeconds(0)
-    setLastSession(null)
-    setSessionStartXp(city.xp)
     transcriptState.clearTranscript()
     setSessionActive(true)
     setSessionStartedAt(Date.now())
@@ -165,12 +145,6 @@ export function useLockIn({ user, lectureApi }) {
       await transcriptState.stopListen()
       await persist(sessionId, snapshot(), true)
     } catch (error) { endingRef.current = false; throw error }
-    setLastSession({
-      seconds: sessionSeconds,
-      notePages: Object.values(notesByDeck[notesKey] ?? {}).filter((text) => text.trim()).length,
-      flags: confusions.filter((flag) => flag.filename === deckKey && new Date(flag.createdAt).getTime() >= sessionStartedAt).length,
-      earned: gameEnabled ? Math.max(0, city.xp - sessionStartXp) : 0,
-    })
     setSessionActive(false)
     setSessionStartedAt(null)
   }
@@ -191,6 +165,14 @@ export function useLockIn({ user, lectureApi }) {
       [deckKey]: [...(all[deckKey] ?? []), highlight],
     }))
     return highlight
+  }
+
+  const removeSlideHighlight = (highlightId) => {
+    if (!deck || !highlightId) return
+    setHighlightsByDeck((all) => ({
+      ...all,
+      [deckKey]: (all[deckKey] ?? []).filter((highlight) => highlight.id !== highlightId),
+    }))
   }
 
   const getLectureContext = () => ({
@@ -224,7 +206,6 @@ export function useLockIn({ user, lectureApi }) {
         })
         setAi({ kind, slide, text: data.summary.join('\n') })
         setCatchUps((items) => [...items, { id: crypto.randomUUID(), timestamp: new Date().toISOString(), slide, summary: data.summary }])
-        if (gameEnabled) city.reward('catchup', deckKey, slide)
       } else {
         const data = await apiRequest('/api/confusion', {
           method: 'POST',
@@ -311,7 +292,6 @@ export function useLockIn({ user, lectureApi }) {
     }
 
     setAiLoading(false)
-    if (gameEnabled) city.reward('flag', deckKey, current)
     if (selection.highlightId) {
       setHighlightsByDeck((all) => ({
         ...all,
@@ -327,12 +307,6 @@ export function useLockIn({ user, lectureApi }) {
   return {
     syncStatus,
     syncError,
-    city,
-    gameEnabled,
-    setGameEnabled,
-    profileName,
-    setProfileName,
-    lastSession,
     endSession,
     deck,
     reading,
@@ -348,6 +322,7 @@ export function useLockIn({ user, lectureApi }) {
     confusions: confusions.filter((flag) => flag.sessionId === sessionId && flag.filename === deckKey),
     slideHighlights: (highlightsByDeck[deckKey] ?? []).filter((highlight) => highlight.sessionId === sessionId && highlight.slide === current),
     createSlideHighlight,
+    removeSlideHighlight,
     submitFlag,
     ai,
     aiLoading,
@@ -357,8 +332,6 @@ export function useLockIn({ user, lectureApi }) {
     sessionActive,
     startSession,
     sessionSeconds,
-    citizen,
-    setCitizenId,
     ...transcriptState,
   }
 }
