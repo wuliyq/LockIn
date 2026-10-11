@@ -91,8 +91,11 @@ function lineContaining(note, selected) {
 const FLAG_LABELS = {
   confusing: 'Confusing',
   question: 'Confusing', // saved while the type was briefly called "question"
-  example: 'Real-world example',
-  worked_example: 'Worked example',
+  example: 'Give an example',
+  real_world: 'Give an example',
+  worked_example: 'Give an example',
+  quick_check: 'Quick check',
+  why_it_matters: 'Why it matters',
   check_thinking: 'Check my thinking',
 }
 

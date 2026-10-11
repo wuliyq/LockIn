@@ -10,41 +10,43 @@ const API_BASE_URL = (import.meta.env.VITE_API_URL ?? 'http://localhost:3001').r
 
 export const AI_LABELS = {
   catchup: 'Catch me up',
-  example: 'Give an example',
-  check: 'Quick check',
-  why: 'Why it matters',
 }
 
+/**
+ * The five ways to flag something, in the order the focus buddy and the highlight
+ * pop-up show them. Each one is sent to the lecturer (anonymously) and gets a short
+ * AI answer. The highlighted text is what the flag is about; with nothing
+ * highlighted, the flag is about the current slide.
+ */
 export const FLAG_TYPES = {
+  example: {
+    label: 'Give an example',
+    prompt: 'Give one short, concrete example of this idea.',
+  },
+  quick_check: {
+    label: 'Quick check',
+    prompt: 'Give me one quick question to check I understand this, with the answer after it.',
+  },
+  why_it_matters: {
+    label: 'Why it matters',
+    prompt: 'Explain briefly why this idea matters or where I might use it.',
+  },
   confusing: {
     label: 'Confusing',
     prompt: 'Explain this in simpler language so I can keep following the lecture.',
   },
-  example: {
-    label: 'Real-world example',
-    prompt: 'Give one short, concrete real-world example of this idea.',
-  },
-  worked_example: {
-    label: 'Worked example',
-    prompt: 'Show one short worked example, step by step.',
-  },
   check_thinking: {
     label: 'Check my thinking',
-    prompt: 'Check whether my thinking is on the right track and correct it briefly if needed.',
+    prompt: 'The highlighted text is my own understanding. Check whether it is on the right track and correct it briefly if needed.',
+    slidePrompt: 'Check whether my notes on this slide are on the right track and correct them briefly if needed.',
   },
 }
 
-// Flags saved while this type was briefly called "question" read as Confusing.
-const LEGACY_FLAG_TYPES = { question: 'confusing' }
+// Older flag ids, so flags saved before these types changed still read sensibly.
+const LEGACY_FLAG_TYPES = { question: 'confusing', worked_example: 'example', real_world: 'example' }
 
 /** The current id for any stored flagType (old ids map to their new name). */
 export const flagTypeId = (flagType) => LEGACY_FLAG_TYPES[flagType] ?? flagType
-
-const HELPER_PROMPTS = {
-  example: 'Give one short, concrete example of this idea.',
-  check: 'Give me one quick understanding check about this slide, with the answer hidden in your explanation.',
-  why: 'Explain briefly why this idea matters or where I might use it.',
-}
 
 /**
  * Workspace state for the lecture view. Notes and local flag history persist
@@ -136,8 +138,9 @@ export function useLockIn({ storageScope = null } = {}) {
     transcriptExcerpt: transcriptState.transcript.slice(-4).join(' ').slice(-4000),
   })
 
+  /** "Catch me up": a short summary of the last stretch of the live transcript. */
   const ask = async (kind) => {
-    if (!deck || aiLoading) return
+    if (!deck || aiLoading || kind !== 'catchup') return
 
     markActive()
     setAiLoading(true)
@@ -145,37 +148,25 @@ export function useLockIn({ storageScope = null } = {}) {
     const slide = current
 
     try {
-      if (kind === 'catchup') {
-        const recentTranscript = transcriptState.transcript.slice(-4).join(' ').trim()
-        if (!recentTranscript) {
-          throw new Error('Start the live transcript first, then LockIN can catch you up.')
-        }
-
-        const data = await apiRequest('/api/catch-up', {
-          method: 'POST',
-          body: {
-            sessionId,
-            slideNumber: current + 1,
-            recentTranscript,
-            slideText,
-          },
-        })
-        setAi({ kind, slide, text: data.summary.join('\n') })
-        setCatchUps((items) => [
-          ...items,
-          { id: crypto.randomUUID(), timestamp: new Date().toISOString(), slide, summary: data.summary },
-        ])
-      } else {
-        const data = await apiRequest('/api/confusion', {
-          method: 'POST',
-          body: {
-            selectedText: title || slideText.slice(0, 500) || `Slide ${current + 1}`,
-            question: HELPER_PROMPTS[kind],
-            ...getLectureContext(),
-          },
-        })
-        setAi({ kind, slide, text: data.answer })
+      const recentTranscript = transcriptState.transcript.slice(-4).join(' ').trim()
+      if (!recentTranscript) {
+        throw new Error('Start recording below the slides first, then LockIN can catch you up.')
       }
+
+      const data = await apiRequest('/api/catch-up', {
+        method: 'POST',
+        body: {
+          sessionId,
+          slideNumber: current + 1,
+          recentTranscript,
+          slideText,
+        },
+      })
+      setAi({ kind, slide, text: data.summary.join('\n') })
+      setCatchUps((items) => [
+        ...items,
+        { id: crypto.randomUUID(), timestamp: new Date().toISOString(), slide, summary: data.summary },
+      ])
     } catch (error) {
       setAiError(error.message)
     } finally {
@@ -184,30 +175,32 @@ export function useLockIn({ storageScope = null } = {}) {
   }
 
   /** Save a student flag for the lecturer, then show the student a concise answer. */
-  const submitFlag = async (studentComment, flagType, selection = {}) => {
+  const submitFlag = async (flagType, selection = {}) => {
     if (!deck || aiLoading) {
       if (!deck) setAiError('Upload slides before asking LockIN about the lecture.')
       return false
     }
 
     markActive()
-    const type = FLAG_TYPES[flagType]?.prompt ? FLAG_TYPES[flagType] : FLAG_TYPES.confusing
-    const selectedText = selection.selectedText?.trim()
-      || window.getSelection()?.toString().trim()
+    const id = FLAG_TYPES[flagType] ? flagType : flagTypeId(flagType)
+    const type = FLAG_TYPES[id] ?? FLAG_TYPES.confusing
+    // The highlighted text is the query. A dragged slide area has no text of its own,
+    // so the slide's text stands in for it.
+    const highlighted = selection.selectedText?.trim() ?? ''
+    const isSlideArea = Boolean(selection.highlightId)
+    const queryText = (!isSlideArea && highlighted)
       || title
       || slideText.slice(0, 500)
       || `Slide ${current + 1}`
-    const question = studentComment.trim()
-      ? `${type.prompt}\nStudent's note: ${studentComment.trim()}`
-      : type.prompt
+    const question = !highlighted || isSlideArea ? (type.slidePrompt ?? type.prompt) : type.prompt
     const localFlag = {
       id: crypto.randomUUID(),
       filename: deckKey,
       slide: current,
-      flagType,
-      text: studentComment.trim() || selectedText,
-      selectedText,
-      studentComment: studentComment.trim(),
+      flagType: id,
+      text: (!isSlideArea && highlighted) || (isSlideArea ? highlighted : `About slide ${current + 1}`),
+      selectedText: highlighted,
+      studentComment: '',
       source: selection.source ?? 'slide',
       highlightId: selection.highlightId ?? null,
       createdAt: new Date().toISOString(),
@@ -222,10 +215,10 @@ export function useLockIn({ storageScope = null } = {}) {
     try {
       const data = await apiRequest('/api/confusion', {
         method: 'POST',
-        body: { selectedText, question, ...getLectureContext() },
+        body: { selectedText: queryText, question, ...getLectureContext() },
       })
       answer = data.answer
-      setAi({ kind: flagType, label: type.label, slide: current, text: answer })
+      setAi({ kind: id, label: type.label, slide: current, text: answer })
       setConfusions((list) => list.map((flag) => (
         flag.id === localFlag.id ? { ...flag, aiAnswer: answer } : flag
       )))
@@ -239,9 +232,9 @@ export function useLockIn({ storageScope = null } = {}) {
         body: {
           sessionId,
           slideNumber: current + 1,
-          flagType,
-          selectedText,
-          studentComment: studentComment.trim(),
+          flagType: id,
+          selectedText: highlighted,
+          studentComment: '',
           aiAnswer: answer,
           source: selection.source ?? 'slide',
         },
@@ -257,7 +250,7 @@ export function useLockIn({ storageScope = null } = {}) {
       setHighlightsByDeck((all) => ({
         ...all,
         [deckKey]: (all[deckKey] ?? []).map((highlight) => (
-          highlight.id === selection.highlightId ? { ...highlight, flagType } : highlight
+          highlight.id === selection.highlightId ? { ...highlight, flagType: id } : highlight
         )),
       }))
     }
