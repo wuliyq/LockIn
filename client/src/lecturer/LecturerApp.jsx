@@ -14,7 +14,7 @@ import './Lecturer.css'
  * Only anonymised counts reach this view; student questions are summarised on the
  * server (paraphrased, never quoted).
  */
-export default function LecturerApp() {
+export default function LecturerApp({ user, onLogout }) {
   const [code, setCode] = useLectureCode()
   const route = useHashRoute()
   const [file, setFile] = useState(null) // the lecture PDF, for thumbnails and slide titles
@@ -47,7 +47,7 @@ export default function LecturerApp() {
 
   return (
     <div className="theme-sage lecturer">
-      <Header code={code} setCode={setCode} dash={dash} onLoadSample={loadSample} />
+      <Header code={code} setCode={setCode} dash={dash} onLoadSample={loadSample} user={user} onLogout={onLogout} />
       <main className="lecturer__main">
         {route.page === 'type' && TYPE_META[route.type] ? (
           <TypeDetail {...ctx} type={route.type} />
@@ -61,7 +61,7 @@ export default function LecturerApp() {
   )
 }
 
-function Header({ code, setCode, dash, onLoadSample }) {
+function Header({ code, setCode, dash, onLoadSample, user, onLogout }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(code)
   const [copied, setCopied] = useState(false)
@@ -146,6 +146,8 @@ function Header({ code, setCode, dash, onLoadSample }) {
         <a className="lect-btn lect-btn--small lect-btn--quiet" href={studentLink}>
           Student view
         </a>
+        {user && <span className="lect-header__user">{user.name}</span>}
+        {onLogout && <button type="button" className="lect-btn lect-btn--small lect-btn--quiet" onClick={() => onLogout().catch(() => {})}>Sign out</button>}
       </div>
     </header>
   )

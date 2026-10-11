@@ -85,6 +85,38 @@
   font-weight: 700;
 }
 
+.app__finish {
+  padding: 0.4rem 0.75rem;
+  border: 1px solid var(--primary);
+  border-radius: 999px;
+  color: var(--primary);
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.app__finish:hover:not(:disabled) {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+/* Shown just under the header so it never pushes the layout around. */
+.app__finish-error {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 1.5rem;
+  z-index: 5;
+  max-width: 24rem;
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--flag);
+  border-radius: 0.5rem;
+  background: var(--card);
+  color: var(--flag);
+  font-size: 0.75rem;
+  box-shadow: var(--shadow-float);
+}
+
 /* --- Two halves ---------------------------------------------------------------- */
 
 .app__body {
