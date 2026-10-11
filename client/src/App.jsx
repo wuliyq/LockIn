@@ -14,7 +14,7 @@ import {
   XIcon,
   ZapIcon,
 } from './icons'
-import { FLAG_TYPES, flagTypeId, useLockIn } from './lockin/useLockIn'
+import { FLAG_TYPES, flagColor, flagTypeId, useLockIn } from './lockin/useLockIn'
 import SelectionFlagger from './lockin/SelectionFlagger'
 import { NUDGE_MINUTES } from './lockin/useFocusNudge'
 import { SlidePanel } from './slides'
@@ -59,10 +59,21 @@ export default function App({ storageScope = null, onFinish = null }) {
     }
   }
 
+  // Change what's highlighted. A dragged slide area that was never flagged is
+  // dropped when the student clears it, picks something else or changes slide.
+  const changeSelection = (next) => {
+    const previous = pendingSelection?.highlightId
+    if (previous && previous !== next?.highlightId) li.removeSlideHighlight(previous)
+    setPendingSelection(next)
+  }
+  const discardSelection = () => changeSelection(null)
+  // After flagging: forget the selection but keep the (now flagged) slide area.
+  const clearSelection = () => setPendingSelection(null)
+
   const addSlideHighlight = (rect) => {
     const highlight = li.createSlideHighlight(rect)
     if (!highlight) return
-    setPendingSelection({
+    changeSelection({
       source: 'slide',
       selectedText: `Highlighted area on slide ${li.current + 1}`,
       highlightId: highlight.id,
@@ -118,9 +129,14 @@ export default function App({ storageScope = null, onFinish = null }) {
               onDeckReady={li.onDeckReady}
               onSlideChange={(index) => {
                 li.onSlideChange(index)
-                setPendingSelection(null)
+                discardSelection()
               }}
-              highlights={li.slideHighlights}
+              highlights={li.slideHighlights
+                // Flagged areas, plus the one being chosen right now.
+                .filter((highlight) => highlight.flagType || highlight.id === pendingSelection?.highlightId)
+                .map((highlight) => (highlight.flagType
+                ? { ...highlight, color: flagColor(highlight.flagType), label: FLAG_TYPES[flagTypeId(highlight.flagType)]?.label }
+                : highlight))}
               onHighlight={addSlideHighlight}
             />
           </div>
@@ -139,8 +155,9 @@ export default function App({ storageScope = null, onFinish = null }) {
           <Notes
             li={li}
             pendingSelection={pendingSelection}
-            onSelection={setPendingSelection}
-            clearSelection={() => setPendingSelection(null)}
+            onSelection={changeSelection}
+            clearSelection={clearSelection}
+            discardSelection={discardSelection}
           />
         </section>
       </div>
@@ -149,13 +166,14 @@ export default function App({ storageScope = null, onFinish = null }) {
         li={li}
         onStartSession={startFocusSession}
         pendingSelection={pendingSelection}
-        clearSelection={() => setPendingSelection(null)}
+        clearSelection={clearSelection}
+        discardSelection={discardSelection}
       />
     </div>
   )
 }
 
-function Notes({ li, pendingSelection, onSelection, clearSelection }) {
+function Notes({ li, pendingSelection, onSelection, clearSelection, discardSelection }) {
   const [showFlags, setShowFlags] = useState(true)
   const split = useFlagsResize()
   const slideLabel = li.deck
@@ -208,14 +226,16 @@ function Notes({ li, pendingSelection, onSelection, clearSelection }) {
             <div className="notes__selection-head">
               <span>{pendingSelection.source === 'notes' ? '📝 Highlighted note' : '🖍 Highlighted slide area'}</span>
               <b>{truncate(pendingSelection.selectedText, 60)}</b>
-              <button type="button" onClick={clearSelection} aria-label="Clear highlight">×</button>
+              <button type="button" onClick={discardSelection} aria-label="Clear highlight">×</button>
             </div>
             <FlagButtons
               li={li}
               className="notes__selection-actions"
               onPick={(flagType) => {
                 li.submitFlag(flagType, pendingSelection).then((sent) => { if (sent) setShowFlags(true) })
-                clearSelection()
+                // Catch me up is about the recording, so a dragged area isn't kept for it.
+                if (flagType === 'catch_up') discardSelection()
+                else clearSelection()
               }}
             />
           </div>
@@ -272,13 +292,16 @@ function FlagHistory({ flags, onGoToSlide }) {
         </button>
         {Object.entries(FLAG_TYPES).filter(([type]) => counts[type]).map(([type, meta]) => (
           <button key={type} type="button" className={filter === type ? 'is-active' : ''} onClick={() => setFilter(type)}>
+            <i className="flag-dot" style={{ '--type-color': flagColor(type) }} aria-hidden="true" />
             {meta.label} <span>{counts[type]}</span>
           </button>
         ))}
       </div>
       {[...shown].reverse().map((flag) => (
-        <article className="flag-card" key={flag.id}>
-          <span className="flag-card__type">{FLAG_TYPES[flagTypeId(flag.flagType)]?.label ?? 'Flag'}</span>
+        <article className="flag-card" key={flag.id} style={{ '--type-color': flagColor(flag.flagType) }}>
+          <span className="flag-card__type">
+            <i className="flag-dot" aria-hidden="true" /> {FLAG_TYPES[flagTypeId(flag.flagType)]?.label ?? 'Flag'}
+          </span>
           <button type="button" className="flag-card__source" onClick={() => onGoToSlide(flag.slide)}>
             {flag.source === 'notes' ? 'Note' : 'Slide'} {flag.slide + 1} · {formatTime(flag.createdAt)}
           </button>
@@ -303,7 +326,8 @@ function FlagButtons({ li, onPick, className = '' }) {
             type="button"
             disabled={!li.deck || li.aiLoading}
             onClick={() => onPick(flagType)}
-            className={`chip ${li.ai?.kind === flagType ? 'is-active' : ''}`}
+            className={`chip flag-chip ${li.ai?.kind === flagType ? 'is-active' : ''}`}
+            style={{ '--type-color': flagColor(flagType) }}
           >
             <Icon /> {type.label}
           </button>
@@ -332,7 +356,7 @@ function RecordingLine({ li }) {
   )
 }
 
-function Helper({ li, onStartSession, pendingSelection, clearSelection }) {
+function Helper({ li, onStartSession, pendingSelection, clearSelection, discardSelection }) {
   const [open, setOpen] = useState(false)
   const { nudge } = li
 
@@ -387,7 +411,8 @@ function Helper({ li, onStartSession, pendingSelection, clearSelection }) {
               className="helper__flag-buttons"
               onPick={(flagType) => {
                 li.submitFlag(flagType, pendingSelection ?? {})
-                clearSelection()
+                if (flagType === 'catch_up') discardSelection()
+                else clearSelection()
               }}
             />
           </div>

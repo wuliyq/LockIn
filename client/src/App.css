@@ -563,15 +563,32 @@
   gap: 0.2rem 0.5rem;
   padding: 0.65rem 0.75rem;
   border: 1px solid var(--border);
-  border-left: 3px solid var(--flag);
+  border-left: 4px solid var(--type-color, var(--flag));
   border-radius: 0.75rem;
   background: var(--card);
   font-size: 0.75rem;
 }
 
 .flag-card__type {
-  color: var(--primary);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--foreground);
   font-weight: 700;
+}
+
+.flag-chip .icon {
+  color: var(--type-color);
+}
+
+.flag-chip:not(:disabled):hover .icon,
+.flag-chip.is-active .icon {
+  color: inherit;
+}
+
+.flag-filters .flag-dot {
+  width: 0.45rem;
+  height: 0.45rem;
 }
 
 .flag-card__source {
@@ -604,6 +621,9 @@
 }
 
 .selection-flagger button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   padding: 0.35rem 0.55rem;
   border-radius: 0.55rem;
   background: var(--muted);

@@ -1,4 +1,5 @@
 import { buildLectureSummary } from './lectureSummary.js'
+import { flagColor } from '../lockin/useLockIn'
 
 const time = (value) => new Date(value).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
 
@@ -54,17 +55,17 @@ function Addition({ addition }) {
 
   if (addition.kind === 'catch-up') {
     return (
-      <div className="lecture-summary__addition">
-        <p className="lecture-summary__label"><b>Catch-up</b>{when}</p>
+      <div className="lecture-summary__addition" style={{ '--type-color': flagColor('catch_up') }}>
+        <p className="lecture-summary__label"><i className="flag-dot" aria-hidden="true" /> <b>Catch-up</b>{when}</p>
         <ul>{addition.points.map((point, index) => <li key={index}>{point}</li>)}</ul>
       </div>
     )
   }
 
   return (
-    <div className="lecture-summary__addition">
+    <div className="lecture-summary__addition" style={{ '--type-color': flagColor(addition.flagType) }}>
       <p className="lecture-summary__label">
-        <b>{addition.label}</b>
+        <i className="flag-dot" aria-hidden="true" /> <b>{addition.label}</b>
         {addition.comment && <span>: {addition.comment}</span>}
         {when}
       </p>

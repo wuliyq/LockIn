@@ -25,6 +25,17 @@
   --flag-foreground: oklch(0.98 0 0);
   --notice: oklch(0.8 0.14 85); /* informational, not an error */
 
+  /* One color per flag type, shared by the student workspace and the lecturer
+     dashboard so a type looks the same everywhere. A categorical set checked for
+     colorblind-safe neighbours; some sit below 3:1 on the card, so a color always
+     comes with the type's name, never on its own. */
+  --flag-type-confusing: #2a78d6; /* blue */
+  --flag-type-example: #eb6834; /* orange */
+  --flag-type-catch_up: #1baf7a; /* aqua */
+  --flag-type-check_thinking: #eda100; /* yellow */
+  --flag-type-why_it_matters: #e87ba4; /* magenta */
+  --flag-type-other: #8a8f98; /* neutral gray */
+
   --font-display: 'Fraunces', Georgia, serif;
   --font-body: 'IBM Plex Sans', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
@@ -110,4 +121,15 @@ button:disabled {
   width: 1em;
   height: 1em;
   flex-shrink: 0;
+}
+
+/* A small swatch for a flag type; set --type-color on it or a parent. */
+.flag-dot {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: var(--type-color, var(--flag));
+  vertical-align: 0.05em;
 }

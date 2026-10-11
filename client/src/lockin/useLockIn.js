@@ -44,6 +44,12 @@ const LEGACY_FLAG_TYPES = { question: 'confusing', worked_example: 'example', re
 /** The current id for any stored flagType (old ids map to their new name). */
 export const flagTypeId = (flagType) => LEGACY_FLAG_TYPES[flagType] ?? flagType
 
+/** A flag type's color (the --flag-type-* tokens in index.css, shared with the lecturer view). */
+export const flagColor = (flagType) => {
+  const id = flagTypeId(flagType)
+  return `var(--flag-type-${FLAG_TYPES[id] ? id : 'other'})`
+}
+
 /**
  * Workspace state for the lecture view. Notes and local flag history persist
  * per PDF, while transcript segments and dashboard flags are sent to Express.
@@ -126,6 +132,14 @@ export function useLockIn({ storageScope = null } = {}) {
       [deckKey]: [...(all[deckKey] ?? []), highlight],
     }))
     return highlight
+  }
+
+  /** Drop a slide highlight that was never flagged (the student cleared it or moved on). */
+  const removeSlideHighlight = (id) => {
+    setHighlightsByDeck((all) => ({
+      ...all,
+      [deckKey]: (all[deckKey] ?? []).filter((highlight) => highlight.id !== id || highlight.flagType),
+    }))
   }
 
   const getLectureContext = () => ({
@@ -321,6 +335,7 @@ export function useLockIn({ storageScope = null } = {}) {
     confusions: confusions.filter((flag) => flag.filename === deckKey),
     slideHighlights: (highlightsByDeck[deckKey] ?? []).filter((highlight) => highlight.slide === current),
     createSlideHighlight,
+    removeSlideHighlight,
     submitFlag,
     nudge,
     ai,

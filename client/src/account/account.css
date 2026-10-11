@@ -946,3 +946,22 @@
     break-inside: avoid;
   }
 }
+
+/* Flag-type colors in the review (see --flag-type-* in index.css) */
+.lecture-review__flag {
+  border-left: 4px solid var(--type-color, var(--flag));
+}
+
+.lecture-review__flag blockquote {
+  border-left-color: var(--type-color, var(--flag));
+}
+
+.lecture-review__flag h3 span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.account-flag-counts .flag-dot {
+  margin-right: 0.15rem;
+}

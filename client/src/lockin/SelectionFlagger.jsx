@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { FLAG_TYPES } from './useLockIn'
+import { FLAG_TYPES, flagColor } from './useLockIn'
 
 /**
  * Shows the flag choices next to highlighted note text. Choosing one sends the flag
@@ -76,12 +76,13 @@ export default function SelectionFlagger({ enabled, onPick }) {
           key={flagType}
           type="button"
           title={type.label}
+          style={{ '--type-color': flagColor(flagType) }}
           onClick={() => {
             onPick(flagType, { source: pick.source, selectedText: pick.text })
             setPick(null)
           }}
         >
-          {type.label}
+          <i className="flag-dot" aria-hidden="true" /> {type.label}
         </button>
       ))}
     </div>
