@@ -5,6 +5,10 @@ import './SlideCanvas.css'
 /**
  * Draws one PDF page sharply inside its container. The transparent layer above it
  * lets students drag across an area they want to revisit, without modifying the PDF.
+ *
+ * Highlights may not overlap: a drag that runs into a flagged highlight shows as
+ * blocked and is dropped on release. (Unflagged highlights are the one being
+ * chosen right now, which a new drag replaces, so they don't block.)
  */
 export default function SlideCanvas({ doc, index, highlights = [], onHighlight }) {
   const boxRef = useRef(null)
@@ -14,6 +18,8 @@ export default function SlideCanvas({ doc, index, highlights = [], onHighlight }
   const [size, setSize] = useState(null)
   const [pageSize, setPageSize] = useState(null)
   const [draft, setDraft] = useState(null)
+  const [notice, setNotice] = useState('')
+  const noticeTimer = useRef(null)
   const [dpr, setDpr] = useState(() => window.devicePixelRatio || 1)
 
   useEffect(() => {
@@ -83,6 +89,17 @@ export default function SlideCanvas({ doc, index, highlights = [], onHighlight }
     }
   }, [doc, index, size, dpr])
 
+  useEffect(() => () => window.clearTimeout(noticeTimer.current), [])
+
+  const blocking = highlights.filter((highlight) => highlight.flagType)
+  const overlapsExisting = (rect) => blocking.some((highlight) => overlaps(rect, highlight.rect))
+
+  const showNotice = (text) => {
+    setNotice(text)
+    window.clearTimeout(noticeTimer.current)
+    noticeTimer.current = window.setTimeout(() => setNotice(''), 2500)
+  }
+
   const normalisePoint = (event) => {
     const rect = event.currentTarget.getBoundingClientRect()
     return {
@@ -116,7 +133,12 @@ export default function SlideCanvas({ doc, index, highlights = [], onHighlight }
     const rect = rectangleFrom(dragRef.current, normalisePoint(event))
     dragRef.current = null
     setDraft(null)
-    if (rect.width > 0.03 && rect.height > 0.03) onHighlight?.(rect)
+    if (rect.width <= 0.03 || rect.height <= 0.03) return
+    if (overlapsExisting(rect)) {
+      showNotice('Highlights can’t overlap. Drag across a part of the slide that isn’t highlighted yet.')
+      return
+    }
+    onHighlight?.(rect)
   }
 
   return (
@@ -139,17 +161,29 @@ export default function SlideCanvas({ doc, index, highlights = [], onHighlight }
               <div
                 key={highlight.id}
                 className={`slide-canvas__highlight ${highlight.flagType ? 'is-flagged' : ''}`}
-                style={toStyle(highlight.rect)}
-                title={highlight.flagType ? `Flagged: ${highlight.flagType}` : 'Slide highlight'}
+                style={{ ...toStyle(highlight.rect), ...(highlight.color && { '--type-color': highlight.color }) }}
+                title={highlight.flagType ? `Flagged: ${highlight.label ?? highlight.flagType}` : 'Slide highlight'}
               />
             ))}
-            {draft && <div className="slide-canvas__highlight is-draft" style={toStyle(draft)} />}
+            {draft && (
+              <div
+                className={`slide-canvas__highlight is-draft ${overlapsExisting(draft) ? 'is-blocked' : ''}`}
+                style={toStyle(draft)}
+              />
+            )}
           </div>
         )}
+        {notice && <p className="slide-canvas__notice" role="status">{notice}</p>}
       </div>
     </div>
   )
 }
+
+/** Do two highlight rectangles share any area? Touching edges is fine. */
+const overlaps = (a, b) => (
+  a.x < b.x + b.width && b.x < a.x + a.width
+  && a.y < b.y + b.height && b.y < a.y + a.height
+)
 
 const toStyle = (rect) => ({
   left: `${rect.x * 100}%`,

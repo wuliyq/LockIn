@@ -132,7 +132,9 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: 1.5rem;
+  /* Extra room at the bottom keeps the slide controls clear of the focus buddy's
+     orb and check-in messages, which sit in the bottom-left corner. */
+  padding: 1.5rem 1.5rem 5.75rem;
   overflow: auto;
 }
 
@@ -376,81 +378,132 @@
   border-color: var(--primary);
 }
 
-.notes__editor::placeholder,
-.notes__flag-form input::placeholder {
+.notes__editor::placeholder {
   color: var(--muted-foreground);
   opacity: 0.8;
 }
 
-.notes__flag-form {
+.notes__hint {
   display: flex;
-  gap: 0.5rem;
-  margin-top: 0.75rem;
-}
-
-.notes__flag-form input {
-  flex: 1;
-  min-width: 0;
-  padding: 0.5rem 1rem;
-  font-size: 0.875rem;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-}
-
-@media (max-width: 520px) {
-  .notes__flag-form {
-    flex-wrap: wrap;
-  }
-
-  .notes__flag-form input {
-    order: 1;
-    flex-basis: 100%;
-  }
-
-  .notes__flag-form select {
-    flex: 1;
-  }
-}
-
-.notes__flag-form select {
-  min-width: 8.5rem;
-  padding: 0.5rem 0.75rem;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  color: var(--foreground);
-  font-size: 0.75rem;
-}
-
-.notes__flag-count {
-  margin: 0.5rem 0 0 1rem;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0.6rem 0 0 0.25rem;
   font-size: 0.75rem;
   color: var(--muted-foreground);
 }
 
+.notes__hint .icon {
+  flex-shrink: 0;
+  width: 0.85rem;
+  height: 0.85rem;
+  color: var(--flag);
+}
+
 .notes__selection {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
   margin-top: 0.75rem;
-  padding: 0.5rem 0.65rem;
+  padding: 0.55rem 0.65rem 0.65rem;
   border: 1px dashed var(--cue);
   border-radius: 0.75rem;
   background: color-mix(in oklab, var(--cue) 14%, var(--card));
   font-size: 0.75rem;
 }
 
-.notes__selection b {
+.notes__selection-head {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.notes__selection-head span {
+  flex-shrink: 0;
+}
+
+.notes__selection-head b {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.notes__selection button {
+.notes__selection-head button {
   margin-left: auto;
   font-size: 1.1rem;
   color: var(--muted-foreground);
+}
+
+.flag-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.notes__selection-actions {
+  margin-top: 0.5rem;
+}
+
+.notes__selection-actions .chip {
+  background: var(--card);
+}
+
+/* --- Recording line under the slides ------------------------------------------ */
+
+.recording-line {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem 0.75rem;
+  margin-top: 0.6rem;
+  font-size: 0.75rem;
+}
+
+.recording-line__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 999px;
+  color: var(--muted-foreground);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in oklab, var(--muted-foreground) 40%, transparent);
+  text-underline-offset: 3px;
+}
+
+.recording-line__toggle .icon {
+  width: 0.85rem;
+  height: 0.85rem;
+}
+
+.recording-line__toggle:not(:disabled):hover {
+  color: var(--primary);
+}
+
+.recording-line__toggle.is-on {
+  color: var(--flag);
+  text-decoration: none;
+}
+
+.recording-line__toggle.is-on::before {
+  content: '';
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: var(--flag);
+  animation: rec-blink 1.4s ease-in-out infinite;
+}
+
+.recording-line__error {
+  color: var(--flag);
+}
+
+@keyframes rec-blink {
+  50% { opacity: 0.3; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .recording-line__toggle.is-on::before { animation: none; }
 }
 
 .notes__flag-history {
@@ -510,15 +563,32 @@
   gap: 0.2rem 0.5rem;
   padding: 0.65rem 0.75rem;
   border: 1px solid var(--border);
-  border-left: 3px solid var(--flag);
+  border-left: 4px solid var(--type-color, var(--flag));
   border-radius: 0.75rem;
   background: var(--card);
   font-size: 0.75rem;
 }
 
 .flag-card__type {
-  color: var(--primary);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--foreground);
   font-weight: 700;
+}
+
+.flag-chip .icon {
+  color: var(--type-color);
+}
+
+.flag-chip:not(:disabled):hover .icon,
+.flag-chip.is-active .icon {
+  color: inherit;
+}
+
+.flag-filters .flag-dot {
+  width: 0.45rem;
+  height: 0.45rem;
 }
 
 .flag-card__source {
@@ -551,6 +621,9 @@
 }
 
 .selection-flagger button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   padding: 0.35rem 0.55rem;
   border-radius: 0.55rem;
   background: var(--muted);

@@ -73,8 +73,9 @@ export function buildInsightsPrompt({ mode, typeLabel = '', questions, slides = 
 
   return `
     You help a university lecturer improve their next lecture, based on where students flagged
-    confusion or asked for examples during this one. Flag types: confusing, example (real-world
-    example), worked_example, check_thinking, other.
+    confusion or asked for examples during this one. Flag types: confusing, example (give an
+    example), catch_up (lost the thread and asked for a recap), why_it_matters, check_thinking, other.
+    Each flag's text is what the student highlighted in their notes or on the slide.
     ${privacy}
 
     Write practical, specific suggestions the lecturer can act on, each tied to slides.

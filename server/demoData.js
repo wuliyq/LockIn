@@ -1,12 +1,13 @@
 /**
  * Sample flags for demos and testing the lecturer dashboard without a live class.
- * Matches the 10-slide "Lecture 7: Gradient Descent" test deck. The questions are
- * invented examples, not real student data.
+ * Matches the 10-slide "Lecture 7: Gradient Descent" test deck. The highlighted
+ * texts are invented examples, not real student data.
  *
  * Deterministic: the same call always produces the same lecture, ending now.
  */
 
-// [slide, minute range in the lecture, { flagType: [count, ...sample questions] }]
+// [slide, minute range in the lecture, { flagType: [count, ...sample highlighted texts] }]
+// Catch-ups summarise the recording, so they carry no highlighted text here.
 const PLAN = [
   [1, [0, 3], {}],
   [2, [3, 6], { check_thinking: [1, 'Is backprop part of today or next week?'] }],
@@ -20,18 +21,20 @@ const PLAN = [
   }],
   [5, [16, 24], {
     confusing: [7, 'Why do we move opposite the gradient instead of along it?', 'Why the minus sign in the update rule?', 'What does eta multiply exactly?', 'How do we know when to stop repeating?', 'Is w one number or all the weights?', 'Why does going against the gradient reduce loss?', 'What is the arrow in the formula?'],
-    worked_example: [4, 'Can we do one update with actual numbers?', 'Could you show two steps of the update by hand?', 'What would w be after one step for a simple line?', 'Can you plug numbers into the update rule?'],
+    catch_up: [3],
+    why_it_matters: [2, 'gradient descent trains almost every ML model', 'same update rule as in neural nets'],
     check_thinking: [2, 'If the gradient is negative we increase w, is that right?', 'So a bigger gradient means a bigger step?'],
   }],
   [6, [24, 27], {
     check_thinking: [3, 'Do the dots get closer because the slope gets smaller?', 'Is each dot one iteration?', 'Would a bigger learning rate skip past the bottom?'],
   }],
   [7, [27, 33], {
+    why_it_matters: [2, 'learning rate is the most important setting to tune', 'too big and training diverges'],
     example: [4, 'What learning rate do people actually use for neural nets?', 'Is there a real case where a big learning rate broke training?', 'How do I pick eta for my homework model?', 'What does diverging look like on a loss plot?'],
     confusing: [2, 'What is a learning-rate schedule?', 'Why would the loss go up if the step is too big?'],
   }],
   [8, [33, 41], {
-    worked_example: [5, 'Can you show how a mini-batch gradient is computed?', 'How many updates happen in one epoch with batches of 32?', 'Could you compare batch and SGD on a tiny dataset?', 'Can we work an SGD step by hand?', 'What does one epoch look like step by step?'],
+    catch_up: [4],
     confusing: [3, 'Why is SGD noisy?', 'How does noise help escape minima?', 'What is the difference between an epoch and an iteration?'],
   }],
   [9, [41, 47], {
@@ -63,9 +66,9 @@ export function buildDemoFlags(now = Date.now()) {
         flags.push({
           slideNumber: slide,
           flagType,
-          selectedText: '',
-          // About a third of students flag without typing a question.
-          studentComment: rand() < 0.7 ? questions[i % questions.length] : '',
+          // The highlighted text is the query; about a third flag the slide without highlighting.
+          selectedText: rand() < 0.7 && questions.length ? questions[i % questions.length] : '',
+          studentComment: '',
           aiAnswer: '',
           source: SOURCES[Math.floor(rand() * SOURCES.length)],
           timestamp: new Date(start + minute * 60000).toISOString(),

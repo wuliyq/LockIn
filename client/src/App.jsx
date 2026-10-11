@@ -6,6 +6,7 @@ import {
   HelpIcon,
   LightbulbIcon,
   LockIcon,
+  MessageCheckIcon,
   MicIcon,
   MicOffIcon,
   TargetIcon,
@@ -13,13 +14,19 @@ import {
   XIcon,
   ZapIcon,
 } from './icons'
-import { AI_LABELS, FLAG_TYPES, flagTypeId, useLockIn } from './lockin/useLockIn'
+import { FLAG_TYPES, flagColor, flagTypeId, useLockIn } from './lockin/useLockIn'
 import SelectionFlagger from './lockin/SelectionFlagger'
 import { NUDGE_MINUTES } from './lockin/useFocusNudge'
 import { SlidePanel } from './slides'
 import './App.css'
 
-const AI_ICONS = { catchup: ZapIcon, example: LightbulbIcon, check: HelpIcon, why: TargetIcon }
+const FLAG_ICONS = {
+  catch_up: ZapIcon,
+  example: LightbulbIcon,
+  why_it_matters: TargetIcon,
+  confusing: HelpIcon,
+  check_thinking: MessageCheckIcon,
+}
 
 /**
  * Student workspace. Opened from the lecture home page it gets a per-lecture
@@ -52,10 +59,21 @@ export default function App({ storageScope = null, onFinish = null }) {
     }
   }
 
+  // Change what's highlighted. A dragged slide area that was never flagged is
+  // dropped when the student clears it, picks something else or changes slide.
+  const changeSelection = (next) => {
+    const previous = pendingSelection?.highlightId
+    if (previous && previous !== next?.highlightId) li.removeSlideHighlight(previous)
+    setPendingSelection(next)
+  }
+  const discardSelection = () => changeSelection(null)
+  // After flagging: forget the selection but keep the (now flagged) slide area.
+  const clearSelection = () => setPendingSelection(null)
+
   const addSlideHighlight = (rect) => {
     const highlight = li.createSlideHighlight(rect)
     if (!highlight) return
-    setPendingSelection({
+    changeSelection({
       source: 'slide',
       selectedText: `Highlighted area on slide ${li.current + 1}`,
       highlightId: highlight.id,
@@ -111,12 +129,18 @@ export default function App({ storageScope = null, onFinish = null }) {
               onDeckReady={li.onDeckReady}
               onSlideChange={(index) => {
                 li.onSlideChange(index)
-                setPendingSelection(null)
+                discardSelection()
               }}
-              highlights={li.slideHighlights}
+              highlights={li.slideHighlights
+                // Flagged areas, plus the one being chosen right now.
+                .filter((highlight) => highlight.flagType || highlight.id === pendingSelection?.highlightId)
+                .map((highlight) => (highlight.flagType
+                ? { ...highlight, color: flagColor(highlight.flagType), label: FLAG_TYPES[flagTypeId(highlight.flagType)]?.label }
+                : highlight))}
               onHighlight={addSlideHighlight}
             />
           </div>
+          <RecordingLine li={li} />
         </section>
 
         <div
@@ -131,20 +155,25 @@ export default function App({ storageScope = null, onFinish = null }) {
           <Notes
             li={li}
             pendingSelection={pendingSelection}
-            onSelection={setPendingSelection}
-            clearSelection={() => setPendingSelection(null)}
+            onSelection={changeSelection}
+            clearSelection={clearSelection}
+            discardSelection={discardSelection}
           />
         </section>
       </div>
 
-      <Helper li={li} onStartSession={startFocusSession} />
+      <Helper
+        li={li}
+        onStartSession={startFocusSession}
+        pendingSelection={pendingSelection}
+        clearSelection={clearSelection}
+        discardSelection={discardSelection}
+      />
     </div>
   )
 }
 
-function Notes({ li, pendingSelection, onSelection, clearSelection }) {
-  const [confusion, setConfusion] = useState('')
-  const [flagType, setFlagType] = useState('confusing')
+function Notes({ li, pendingSelection, onSelection, clearSelection, discardSelection }) {
   const [showFlags, setShowFlags] = useState(true)
   const split = useFlagsResize()
   const slideLabel = li.deck
@@ -179,59 +208,42 @@ function Notes({ li, pendingSelection, onSelection, clearSelection }) {
           onSelect={captureNoteSelection}
           placeholder={
             li.deck
-              ? 'Write freely. Select text to turn it into a flag.'
+              ? 'Write freely. Highlight any line to flag it.'
               : 'Upload your slides to keep notes linked to each slide, or just start writing.'
           }
         />
 
-        {pendingSelection && (
-          <div className="notes__selection">
-            <span>{pendingSelection.source === 'notes' ? '📝 Note selected' : '🖍 Slide area selected'}</span>
-            <b>{truncate(pendingSelection.selectedText, 54)}</b>
-            <button type="button" onClick={clearSelection} aria-label="Clear selected text">×</button>
-          </div>
-        )}
-
         <SelectionFlagger
-          enabled={Boolean(li.deck)}
-          onPick={(nextFlagType, selection) => {
-            setFlagType(nextFlagType)
-            onSelection(selection)
+          enabled={Boolean(li.deck) && !li.aiLoading}
+          onPick={(flagType, selection) => {
+            li.submitFlag(flagType, selection).then((sent) => { if (sent) setShowFlags(true) })
+            clearSelection()
           }}
         />
 
-        <form
-          className="notes__flag-form"
-          onSubmit={(event) => {
-            event.preventDefault()
-            li.submitFlag(confusion, flagType, pendingSelection ?? {}).then((sent) => {
-              if (sent) {
-                setConfusion('')
-                clearSelection()
-                setShowFlags(true)
-              }
-            })
-          }}
-        >
-          <select
-            value={flagType}
-            onChange={(event) => setFlagType(event.target.value)}
-            aria-label="Type of help needed"
-          >
-            {Object.entries(FLAG_TYPES).map(([value, type]) => (
-              <option key={value} value={value}>{type.label}</option>
-            ))}
-          </select>
-          <input
-            value={confusion}
-            onChange={(event) => setConfusion(event.target.value)}
-            placeholder="Add a question, then flag it"
-            aria-label="Question or note about selected content"
-          />
-          <button type="submit" className="btn-flag" disabled={li.aiLoading}>
-            <FlagIcon /> Flag
-          </button>
-        </form>
+        {pendingSelection ? (
+          <div className="notes__selection">
+            <div className="notes__selection-head">
+              <span>{pendingSelection.source === 'notes' ? '📝 Highlighted note' : '🖍 Highlighted slide area'}</span>
+              <b>{truncate(pendingSelection.selectedText, 60)}</b>
+              <button type="button" onClick={discardSelection} aria-label="Clear highlight">×</button>
+            </div>
+            <FlagButtons
+              li={li}
+              className="notes__selection-actions"
+              onPick={(flagType) => {
+                li.submitFlag(flagType, pendingSelection).then((sent) => { if (sent) setShowFlags(true) })
+                // Catch me up is about the recording, so a dragged area isn't kept for it.
+                if (flagType === 'catch_up') discardSelection()
+                else clearSelection()
+              }}
+            />
+          </div>
+        ) : (
+          <p className="notes__hint">
+            <FlagIcon /> Highlight your notes or drag across the slide to flag it. What you highlight is what LockIN answers.
+          </p>
+        )}
       </div>
 
       {showFlags && (
@@ -280,13 +292,16 @@ function FlagHistory({ flags, onGoToSlide }) {
         </button>
         {Object.entries(FLAG_TYPES).filter(([type]) => counts[type]).map(([type, meta]) => (
           <button key={type} type="button" className={filter === type ? 'is-active' : ''} onClick={() => setFilter(type)}>
+            <i className="flag-dot" style={{ '--type-color': flagColor(type) }} aria-hidden="true" />
             {meta.label} <span>{counts[type]}</span>
           </button>
         ))}
       </div>
       {[...shown].reverse().map((flag) => (
-        <article className="flag-card" key={flag.id}>
-          <span className="flag-card__type">{FLAG_TYPES[flagTypeId(flag.flagType)]?.label ?? 'Flag'}</span>
+        <article className="flag-card" key={flag.id} style={{ '--type-color': flagColor(flag.flagType) }}>
+          <span className="flag-card__type">
+            <i className="flag-dot" aria-hidden="true" /> {FLAG_TYPES[flagTypeId(flag.flagType)]?.label ?? 'Flag'}
+          </span>
           <button type="button" className="flag-card__source" onClick={() => onGoToSlide(flag.slide)}>
             {flag.source === 'notes' ? 'Note' : 'Slide'} {flag.slide + 1} · {formatTime(flag.createdAt)}
           </button>
@@ -299,7 +314,49 @@ function FlagHistory({ flags, onGoToSlide }) {
   )
 }
 
-function Helper({ li, onStartSession }) {
+/** The five flag actions as chips. Each sends a flag to the lecturer and gets an AI answer. */
+function FlagButtons({ li, onPick, className = '' }) {
+  return (
+    <div className={`flag-buttons ${className}`} role="group" aria-label="Flag as">
+      {Object.entries(FLAG_TYPES).map(([flagType, type]) => {
+        const Icon = FLAG_ICONS[flagType] ?? FlagIcon
+        return (
+          <button
+            key={flagType}
+            type="button"
+            disabled={!li.deck || li.aiLoading}
+            onClick={() => onPick(flagType)}
+            className={`chip flag-chip ${li.ai?.kind === flagType ? 'is-active' : ''}`}
+            style={{ '--type-color': flagColor(flagType) }}
+          >
+            <Icon /> {type.label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+/** A quiet line under the slides: start or stop the lecture recording that powers Catch me up. */
+function RecordingLine({ li }) {
+  const connecting = li.transcriptStatus === 'connecting'
+  return (
+    <div className="recording-line" aria-live="polite">
+      <button
+        type="button"
+        className={`recording-line__toggle ${li.listening ? 'is-on' : ''}`}
+        onClick={li.toggleListen}
+        disabled={connecting}
+      >
+        {li.listening ? <MicOffIcon /> : <MicIcon />}
+        {connecting ? 'Connecting to the microphone…' : li.listening ? 'Recording the lecture · stop' : 'Record the lecture for catch-ups'}
+      </button>
+      {li.transcriptError && <span className="recording-line__error">{li.transcriptError}</span>}
+    </div>
+  )
+}
+
+function Helper({ li, onStartSession, pendingSelection, clearSelection, discardSelection }) {
   const [open, setOpen] = useState(false)
   const { nudge } = li
 
@@ -335,38 +392,29 @@ function Helper({ li, onStartSession }) {
           </div>
           <div className="helper__body" aria-live="polite">
             <p className="helper__status">
-              {li.listening ? '● Recording quietly in the background' : li.sessionActive ? 'Ready when you need a nudge' : 'Tap the orb to begin your focus session'}
+              {pendingSelection
+                ? 'These buttons will use what you highlighted.'
+                : li.sessionActive ? 'Ask about this slide, or highlight something first.' : 'Tap the orb to begin your focus session'}
             </p>
-            {li.transcriptError && <p className="helper__error">{li.transcriptError}</p>}
             {li.aiLoading && <p className="muted">Thinking…</p>}
             {li.ai && !li.aiLoading && (
               <div className="helper__answer">
-                <b>{li.ai.label ?? AI_LABELS[li.ai.kind]} · slide {li.ai.slide + 1}</b>
+                <b>{li.ai.label} · slide {li.ai.slide + 1}</b>
                 {li.ai.text}
               </div>
             )}
             {li.aiError && <p className="helper__error">{li.aiError}</p>}
           </div>
           <div className="helper__actions">
-            {li.sessionActive && (
-              <button type="button" onClick={li.toggleListen} className={`chip helper__record ${li.listening ? 'is-active' : ''}`}>
-                {li.listening ? <MicOffIcon /> : <MicIcon />} {li.listening ? 'Stop recording' : 'Start recording'}
-              </button>
-            )}
-            {Object.entries(AI_LABELS).map(([kind, label]) => {
-              const Icon = AI_ICONS[kind]
-              return (
-                <button
-                  key={kind}
-                  type="button"
-                  disabled={!li.deck}
-                  onClick={() => li.ask(kind)}
-                  className={`chip ${li.ai?.kind === kind ? 'is-active' : ''}`}
-                >
-                  <Icon /> {label}
-                </button>
-              )
-            })}
+            <FlagButtons
+              li={li}
+              className="helper__flag-buttons"
+              onPick={(flagType) => {
+                li.submitFlag(flagType, pendingSelection ?? {})
+                if (flagType === 'catch_up') discardSelection()
+                else clearSelection()
+              }}
+            />
           </div>
           <div className="helper__settings">
             <label className="helper__switch">

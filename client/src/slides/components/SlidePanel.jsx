@@ -223,7 +223,7 @@ export default function SlidePanel({ index: controlledIndex, onDeckReady, onSlid
         </button>
       </div>
 
-      <p className="slide-panel__hint">Drag across a slide area to mark it for a question.</p>
+      <p className="slide-panel__hint">Drag across part of the slide to flag it.</p>
 
       {/* Scanned PDFs (or failed extraction) still display; say plainly what that means. */}
       {deck && !deck.hasTextLayer && (

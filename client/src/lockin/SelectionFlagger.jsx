@@ -1,10 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { FLAG_TYPES } from './useLockIn'
+import { FLAG_TYPES, flagColor } from './useLockIn'
 
 /**
- * Shows a compact choice bar next to selected note text. Choosing a type keeps
- * the selection in the normal LockIN composer, so students can add a question
- * before it is sent to Gemini and the lecturer dashboard.
+ * Shows the flag choices next to highlighted note text. Choosing one sends the flag
+ * straight away: the highlighted text is what the student is asking about.
  */
 export default function SelectionFlagger({ enabled, onPick }) {
   const [pick, setPick] = useState(null)
@@ -69,7 +68,7 @@ export default function SelectionFlagger({ enabled, onPick }) {
       className="selection-flagger"
       style={{ left: pick.x, top: pick.y }}
       role="toolbar"
-      aria-label="Choose a type for the selected note"
+      aria-label="Flag the highlighted note"
       onMouseDown={(event) => event.preventDefault()}
     >
       {entries.map(([flagType, type]) => (
@@ -77,12 +76,13 @@ export default function SelectionFlagger({ enabled, onPick }) {
           key={flagType}
           type="button"
           title={type.label}
+          style={{ '--type-color': flagColor(flagType) }}
           onClick={() => {
             onPick(flagType, { source: pick.source, selectedText: pick.text })
             setPick(null)
           }}
         >
-          {type.label}
+          <i className="flag-dot" aria-hidden="true" /> {type.label}
         </button>
       ))}
     </div>

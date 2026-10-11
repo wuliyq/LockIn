@@ -13,7 +13,8 @@ export function anonymise(rawFlags) {
       type: normalizeType(f.flagType),
       slide: Math.round(Number(f.slideNumber)),
       time: Date.parse(f.timestamp),
-      hasQuestion: Boolean(f.studentComment?.trim()),
+      // Did the student highlight text (or, in older flags, type a question)?
+      hasQuestion: Boolean(f.studentComment?.trim() || (f.selectedText?.trim() && !/^Highlighted area on slide \d+$/.test(f.selectedText.trim()))),
     }))
     .filter((f) => Number.isFinite(f.slide) && f.slide >= 1)
 }

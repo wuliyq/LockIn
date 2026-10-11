@@ -41,7 +41,7 @@ export default function TypeDetail({ type, stats, code, navigate, slideName, sli
           {stats.total > 0 && <span>{pct(count / Math.max(1, stats.total))} of all flags</span>}
           {slides[0] && <span>Most on slide {slides[0].slide}</span>}
           {peak && <span>Busiest around {clock(peak.startTime)}</span>}
-          <span>{withQuestion} with a written question</span>
+          <span>{withQuestion} with highlighted text</span>
         </p>
       </header>
 
@@ -62,7 +62,7 @@ export default function TypeDetail({ type, stats, code, navigate, slideName, sli
             <h2 id="key-questions" className="lect-card__title">
               What students asked about
             </h2>
-            <AiStatus state={insights} empty="No written questions with this flag yet. Students flagged it without typing a question.">
+            <AiStatus state={insights} empty="No highlighted text with this flag yet. Students flagged the slide without highlighting anything.">
               {insights.data?.summary && <p className="lect-questions__summary">{insights.data.summary}</p>}
               {insights.data?.themes?.length > 0 ? (
                 <ol className="lect-themes">

@@ -58,7 +58,7 @@ export default function Overview(props) {
             <dd>{stats.total}</dd>
           </div>
           <div>
-            <dt>With a written question</dt>
+            <dt>With highlighted text</dt>
             <dd>{stats.questions}</dd>
           </div>
           <div>
