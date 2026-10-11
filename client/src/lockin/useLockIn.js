@@ -49,17 +49,29 @@ export function useLockIn() {
   const [current, setCurrent] = useState(0)
   const [notesByDeck, setNotesByDeck] = useStored('lockin.notes', {})
   const [confusions, setConfusions] = useStored('lockin.confusions', [])
+  const [highlightsByDeck, setHighlightsByDeck] = useStored('lockin.slideHighlights', {})
   const [savedAt, setSavedAt] = useState('')
   const [ai, setAi] = useState(null)
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState('')
   const sessionId = useSessionId()
+  const [sessionActive, setSessionActive] = useStored('lockin.sessionActive', false)
+  const [sessionStartedAt, setSessionStartedAt] = useStored('lockin.sessionStartedAt', null)
+  const [sessionSeconds, setSessionSeconds] = useState(0)
 
   const transcriptState = useTranscript({ sessionId, slideNumber: current + 1 })
   const deckKey = deck?.filename ?? ''
   const slideText = deck?.slides[current]?.text ?? ''
   const title = slideText.split('\n', 1)[0].trim()
   const note = notesByDeck[deckKey]?.[current] ?? ''
+
+  useEffect(() => {
+    if (!sessionActive || !sessionStartedAt) return undefined
+    const update = () => setSessionSeconds(Math.floor((Date.now() - sessionStartedAt) / 1000))
+    update()
+    const timer = window.setInterval(update, 1000)
+    return () => window.clearInterval(timer)
+  }, [sessionActive, sessionStartedAt])
 
   const onDeckReady = (nextDeck) => {
     setDeck(nextDeck)
@@ -75,6 +87,28 @@ export function useLockIn() {
   }
 
   const insertLine = (line) => setNote((note ? `${note}\n` : '') + line)
+
+  const startSession = () => {
+    setSessionActive(true)
+    setSessionStartedAt(Date.now())
+  }
+
+  const createSlideHighlight = (rect) => {
+    if (!deck) return null
+    const highlight = {
+      id: crypto.randomUUID(),
+      filename: deckKey,
+      slide: current,
+      rect,
+      createdAt: new Date().toISOString(),
+      flagType: null,
+    }
+    setHighlightsByDeck((all) => ({
+      ...all,
+      [deckKey]: [...(all[deckKey] ?? []), highlight],
+    }))
+    return highlight
+  }
 
   const getLectureContext = () => ({
     slideText: slideText || title || 'No extracted slide text is available.',
@@ -125,14 +159,15 @@ export function useLockIn() {
   }
 
   /** Save a student flag for the lecturer, then show the student a concise answer. */
-  const submitFlag = async (studentComment, flagType) => {
+  const submitFlag = async (studentComment, flagType, selection = {}) => {
     if (!deck || aiLoading) {
       if (!deck) setAiError('Upload slides before asking LockIN about the lecture.')
       return false
     }
 
     const type = FLAG_TYPES[flagType] ?? FLAG_TYPES.confusing
-    const selectedText = window.getSelection()?.toString().trim()
+    const selectedText = selection.selectedText?.trim()
+      || window.getSelection()?.toString().trim()
       || title
       || slideText.slice(0, 500)
       || `Slide ${current + 1}`
@@ -145,6 +180,9 @@ export function useLockIn() {
       slide: current,
       flagType,
       text: studentComment.trim() || selectedText,
+      source: selection.source ?? 'slide',
+      highlightId: selection.highlightId ?? null,
+      createdAt: new Date().toISOString(),
     }
 
     setConfusions((list) => [...list, localFlag])
@@ -160,6 +198,9 @@ export function useLockIn() {
       })
       answer = data.answer
       setAi({ kind: flagType, label: type.label, slide: current, text: answer })
+      setConfusions((list) => list.map((flag) => (
+        flag.id === localFlag.id ? { ...flag, aiAnswer: answer } : flag
+      )))
     } catch (error) {
       answerError = error.message
     }
@@ -174,6 +215,7 @@ export function useLockIn() {
           selectedText,
           studentComment: studentComment.trim(),
           aiAnswer: answer,
+          source: selection.source ?? 'slide',
         },
       })
     } catch (error) {
@@ -183,6 +225,14 @@ export function useLockIn() {
     }
 
     setAiLoading(false)
+    if (selection.highlightId) {
+      setHighlightsByDeck((all) => ({
+        ...all,
+        [deckKey]: (all[deckKey] ?? []).map((highlight) => (
+          highlight.id === selection.highlightId ? { ...highlight, flagType } : highlight
+        )),
+      }))
+    }
     if (answerError) setAiError(`Your flag was sent to the lecturer. LockIN could not answer right now: ${answerError}`)
     return true
   }
@@ -200,12 +250,17 @@ export function useLockIn() {
     insertLine,
     savedAt,
     confusions: confusions.filter((flag) => flag.filename === deckKey),
+    slideHighlights: (highlightsByDeck[deckKey] ?? []).filter((highlight) => highlight.slide === current),
+    createSlideHighlight,
     submitFlag,
     ai,
     aiLoading,
     aiError,
     ask,
     sessionId,
+    sessionActive,
+    startSession,
+    sessionSeconds,
     ...transcriptState,
   }
 }
@@ -240,7 +295,7 @@ function useTranscript({ sessionId, slideNumber }) {
         body: { sessionId, ...segment },
       })
     } catch (error) {
-      setTranscriptError(`Transcript is visible here, but was not saved for catch-up: ${error.message}`)
+      setTranscriptError(`Recording is running, but this transcript segment was not saved for catch-up: ${error.message}`)
     }
   }
 

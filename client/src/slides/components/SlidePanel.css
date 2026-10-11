@@ -162,3 +162,10 @@
   color: var(--muted-foreground);
   font-variant-numeric: tabular-nums;
 }
+
+.slide-panel__hint {
+  margin: 0;
+  text-align: center;
+  font-size: 0.72rem;
+  color: var(--muted-foreground);
+}

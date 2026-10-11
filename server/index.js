@@ -161,6 +161,7 @@ app.post("/api/flags", (req, res) => {
     selectedText,
     studentComment,
     aiAnswer,
+    source,
   } = req.body;
 
   if (!sessionId || !slideNumber || !flagType) {
@@ -175,6 +176,7 @@ app.post("/api/flags", (req, res) => {
     selectedText,
     studentComment,
     aiAnswer,
+    source,
   });
 
   res.status(201).json({ flag: savedFlag });
