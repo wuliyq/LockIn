@@ -62,6 +62,47 @@ npm run dev
 
 Open the Vite address printed in Terminal 2 (usually `http://localhost:5173`). The frontend proxies `/api` calls to the Express server on port `3001`.
 
+## Share a lecture across laptops without a database
+
+Pick one teammate's laptop as the host. Everyone—including the lecturer—opens that host's **network address**, not their own localhost. Student actions and the dashboard then use the same backend.
+
+On the host, add these lines to the project-root `.env`:
+
+```env
+SHARED_DATA_DIR=./shared_logs
+MIN_STUDENTS=1
+```
+
+Start the backend from the project root with `npm run dev`. Its startup message should say **file store**. In a second terminal, also from the project root:
+
+```bash
+npm --prefix client run dev -- --host 0.0.0.0
+```
+
+Open the Network URL Vite prints, for example `http://192.168.1.50:5173` (use the host's actual IP and port). Leave `VITE_API_URL` unset on the frontend so `/api` goes through that host's proxy. If it was set to localhost, remove that setting and restart Vite; rebuild if serving a production build.
+
+1. The lecturer creates a class using the existing **Create class** form, then opens its dashboard.
+2. Students open the same host website, enter that class code in the existing field, and start a **new** lecture. A blank code creates independent study, which won't appear in the class dashboard.
+3. Upload the same PDF on each laptop so slide numbers match. Flag a slide or note, and wait for the dashboard's next refresh. Existing AI requests can delay flag submission.
+
+The host creates `shared_logs/lockin-data.json` automatically. It stores classes, student sessions, flags, snapshots and transcript segments, and survives server restarts. This folder is ignored by Git. `SHARED_DATA_DIR` takes precedence over Postgres and `USE_MEMORY`; leaving it blank preserves the existing selection. Switching stores does **not** migrate old data—create a fresh demo class after switching.
+
+Only the backend reads/writes the file. Students do **not** need to mount a shared folder, and the raw file should never be publicly served: it contains private notes/transcripts and optional names. Existing dashboard filtering remains unchanged. `MIN_STUDENTS=1` shows one student's reactions for a demo; `3` enables the existing small-group privacy threshold. The app remains a demo, not a secure authenticated classroom service.
+
+### If you deliberately run multiple backends
+
+Point `SHARED_DATA_DIR` on each backend to the **same actual mounted directory**, not separate folders with the same name. Restrict access to the trusted backend users, rather than granting everyone write access. The file store reloads before every operation, serializes changes with an exclusive directory lock, and replaces the JSON file using a unique temporary file. Shared filesystems must support exclusive directory creation and atomic rename within the directory. Concurrent processes on one filesystem are tested; your SMB configuration still needs a real two-laptop check. Do not use a cloud-synced folder for this.
+
+A crashed process may leave `.lockin-write-lock` behind. If requests report that storage is busy, first stop **all** backends using the folder. Only then remove that empty lock directory and restart. Never delete the data file to fix a lock. A corrupt/unreadable data file causes an error instead of silently resetting the class.
+
+For this hackathon, one host backend is simpler. This adapter rewrites a small JSON snapshot per change; use Postgres for larger classes or production. Browser recording on another laptop's plain HTTP address still needs an HTTPS setup; reactions and notes can use LAN HTTP.
+
+File-store checks, without PostgreSQL or paid AI calls:
+
+```bash
+node --test server/store/fileStore.test.js
+```
+
 ## Tech we used
 
 - **React + Vite** for the interface
