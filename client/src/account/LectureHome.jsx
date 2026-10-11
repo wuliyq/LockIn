@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { FileIcon, LockIcon } from '../icons'
+import LectureSummary from './LectureSummary.jsx'
 
 const date = (value) => new Date(value).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })
 const time = (value) => new Date(value).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
-const flagLabel = (value) => ({ confusing: 'Confusing', example: 'Real-world example', worked_example: 'Worked example', check_thinking: 'Check my thinking' })[value] || value
+const flagLabel = (value) => ({ confusing: 'Confusing', question: 'Confusing', example: 'Real-world example', worked_example: 'Worked example', check_thinking: 'Check my thinking' })[value] || value
 
 export default function LectureHome({ user, api, onStart, onLogout }) {
   const [lectures, setLectures] = useState([])
@@ -57,16 +58,17 @@ export default function LectureHome({ user, api, onStart, onLogout }) {
 }
 
 function LectureDetail({ lecture, lecturer, onBack }) {
-  const [tab, setTab] = useState(lecturer ? 'flags' : 'notes')
+  const [tab, setTab] = useState(lecturer ? 'flags' : 'summary')
   const snapshot = lecture.snapshot || {}
   const flags = lecture.flags || snapshot.flags || []
   const catchUps = lecture.catchUps || snapshot.catchUps || []
-  const tabs = lecturer ? ['flags', 'catch-ups'] : ['notes', 'slides', 'flags', 'catch-ups']
+  const tabs = lecturer ? ['flags', 'catch-ups'] : ['summary', 'notes', 'slides', 'flags', 'catch-ups']
   return <section className="lecture-review" aria-label="Lecture review">
     <button className="account-back" onClick={onBack}>← All lectures</button><span className="account-eyebrow">{date(lecture.started_at)} · {lecture.ended_at ? 'COMPLETED LECTURE' : 'SAVED SESSION'}</span><h1>{lecture.title}</h1>
     <p>{snapshot.filename || 'Lecture notes'}{!lecturer && ' · Saved to your lecture history'}</p>
     <div className="account-tabs" role="tablist" aria-label="Lecture material">{tabs.map((value) => <button key={value} role="tab" id={`review-tab-${value}`} aria-controls="review-panel" aria-selected={tab === value} onClick={() => setTab(value)}>{value === 'catch-ups' ? 'Catch-ups' : value[0].toUpperCase() + value.slice(1)}</button>)}</div>
     <div id="review-panel" role="tabpanel" aria-labelledby={`review-tab-${tab}`}>
+      {tab === 'summary' && <LectureSummary title={lecture.title} snapshot={snapshot} flags={flags} catchUps={catchUps} />}
       {tab === 'notes' && <>{Object.entries(snapshot.notes || {}).filter(([,text]) => text.trim()).map(([slide,text]) => <article className="lecture-review__paper" key={slide}><h3>Slide {Number(slide) + 1}</h3><p>{text}</p></article>)}{!Object.values(snapshot.notes || {}).some((text) => text.trim()) && <p className="account-empty">No notes saved for this lecture.</p>}</>}
       {tab === 'slides' && <><p className="account-muted">Saved slide text is shown here. The original PDF file is not stored in this version.</p>{(snapshot.slides || []).map((slide,index) => <article className="lecture-review__paper" key={index}><h3>Slide {index + 1}</h3><p>{slide.text || 'No text was extracted from this slide.'}</p></article>)}{!snapshot.slides?.length && <p className="account-empty">No slide text saved.</p>}</>}
       {tab === 'flags' && <>{flags.length > 0 && <div className="account-flag-counts">{[...new Set(flags.map((flag) => flag.flagType))].map((type) => <span key={type}>{flagLabel(type)} <b>{flags.filter((flag) => flag.flagType === type).length}</b></span>)}</div>}{flags.map((flag) => <article className="lecture-review__paper" key={flag.id}><h3>{flagLabel(flag.flagType)} · Slide {flag.slideNumber ?? (flag.slide ?? 0) + 1}<small>{(flag.timestamp || flag.createdAt) && time(flag.timestamp || flag.createdAt)}</small></h3>{flag.selectedText && <blockquote>{flag.selectedText}</blockquote>}<p>{flag.studentComment || flag.text}</p>{flag.aiAnswer && <div className="lecture-review__answer"><b>AI explanation</b><p>{flag.aiAnswer}</p></div>}</article>)}{flags.length === 0 && <p className="account-empty">No flags for this lecture.</p>}</>}

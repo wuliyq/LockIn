@@ -788,3 +788,161 @@
     padding: 0.375rem 1rem;
   }
 }
+
+/* --- Summary notes: the student's notes with flags and AI answers woven in --------- */
+
+.lecture-summary {
+  /* Additions to the student's own notes: the theme's dark green, a step darker than
+     --primary so long passages stay easy to read (about 8:1 on the card). */
+  --summary-ink: oklch(0.38 0.08 160);
+}
+
+.lecture-summary__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.lecture-summary__toolbar p {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--muted-foreground);
+}
+
+.lecture-summary__key {
+  color: var(--summary-ink);
+  font-weight: 600;
+}
+
+.lecture-summary__page {
+  padding: clamp(1.25rem, 4vw, 2.5rem);
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  background: var(--card);
+  box-shadow: var(--shadow-card);
+}
+
+.account-home .lecture-summary__title {
+  margin: 0 0 1.5rem;
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.lecture-summary__slide + .lecture-summary__slide {
+  margin-top: 1.75rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.lecture-summary__slide h3 {
+  margin: 0 0 0.75rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.lecture-summary__slide h3 span {
+  color: var(--muted-foreground);
+  font-weight: 500;
+}
+
+.lecture-summary__block + .lecture-summary__block {
+  margin-top: 0.75rem;
+}
+
+.lecture-summary__note {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 1rem;
+  line-height: 1.75;
+}
+
+.lecture-summary__no-note {
+  margin: 0;
+  font-size: 0.875rem;
+  font-style: italic;
+  color: var(--muted-foreground);
+}
+
+.lecture-summary__addition {
+  margin: 0.5rem 0 0 0.25rem;
+  padding: 0.125rem 0 0.125rem 0.875rem;
+  border-left: 2px solid color-mix(in oklab, var(--summary-ink) 35%, transparent);
+  color: var(--summary-ink);
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.lecture-summary__addition p,
+.lecture-summary__addition ul {
+  margin: 0;
+}
+
+.lecture-summary__addition ul {
+  padding-left: 1.1rem;
+}
+
+.lecture-summary__label small {
+  margin-left: 0.5rem;
+  font-size: 0.75rem;
+  color: color-mix(in oklab, var(--summary-ink) 65%, var(--card));
+  font-variant-numeric: tabular-nums;
+}
+
+.lecture-summary__addition blockquote {
+  margin: 0.25rem 0;
+  padding-left: 0.625rem;
+  border-left: 2px solid var(--border);
+  font-style: italic;
+}
+
+.lecture-summary__answer {
+  margin-top: 0.25rem !important;
+}
+
+.lecture-summary__answer b {
+  font-weight: 600;
+}
+
+@media print {
+  .account-home::before,
+  .account-nav,
+  .account-back,
+  .account-tabs,
+  .account-preview-banner,
+  .lecture-review > .account-eyebrow,
+  .lecture-review > h1,
+  .lecture-review > p,
+  .lecture-summary__toolbar {
+    display: none !important;
+  }
+
+  .account-home,
+  .account-home__main {
+    padding: 0 !important;
+    background: #fff !important;
+    background-image: none !important;
+  }
+
+  .lecture-summary__page {
+    padding: 0;
+    border: 0;
+    background: #fff;
+    box-shadow: none;
+  }
+
+  .lecture-summary__slide h3 {
+    break-after: avoid;
+  }
+
+  .lecture-summary__addition {
+    break-inside: avoid;
+  }
+}

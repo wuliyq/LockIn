@@ -1,14 +1,15 @@
-import { FLAG_TYPES } from '../lockin/useLockIn'
+import { FLAG_TYPES, flagTypeId } from '../lockin/useLockIn'
 
 /**
  * Flag types as the lecturer dashboard shows them. Ids match the student app's
  * FLAG_TYPES (that's what's stored as `flagType`); labels come from there too,
  * so renaming a type in one place renames it everywhere.
  *
- * Order matters: it fixes each type's color slot (see --lect-type-* in
- * Lecturer.css) so a type keeps its color whichever types are on screen.
+ * ORDER is how types are listed. Each type also has a fixed color slot (see
+ * --lect-type-* in Lecturer.css) so it keeps its color whichever types are on screen.
  */
 const ORDER = ['confusing', 'example', 'worked_example', 'check_thinking']
+const COLOR_SLOT = { confusing: 1, example: 2, worked_example: 3, check_thinking: 4, other: 5 }
 
 const ADVICE = {
   confusing: 'Re-explain it more simply, with a diagram or a step-by-step walkthrough.',
@@ -24,12 +25,12 @@ const ALIASES = { real_world: 'example' }
 export const TYPE_IDS = [...ORDER, 'other']
 
 export const TYPE_META = Object.fromEntries(
-  TYPE_IDS.map((id, slot) => [
+  TYPE_IDS.map((id) => [
     id,
     {
       id,
       label: FLAG_TYPES[id]?.label ?? 'Other',
-      color: `var(--lect-type-${slot + 1})`,
+      color: `var(--lect-type-${COLOR_SLOT[id]})`,
       advice: ADVICE[id],
     },
   ]),
@@ -37,6 +38,6 @@ export const TYPE_META = Object.fromEntries(
 
 /** Map any stored flagType to one of TYPE_IDS; unknown kinds fold into "Other". */
 export function normalizeType(flagType) {
-  const id = ALIASES[flagType] ?? flagType
+  const id = ALIASES[flagType] ?? flagTypeId(flagType)
   return ORDER.includes(id) ? id : 'other'
 }
