@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { ElevenLabsSTT } from './stt'
+import { useFocusNudge } from './useFocusNudge'
 
 /**
  * The Vite app and Express server run on different ports in development.
@@ -14,9 +15,17 @@ export const AI_LABELS = {
   why: 'Why it matters',
 }
 
+/**
+ * `quick` types are one tap: no question box and no AI answer, just a signal to
+ * the lecturer (the "?" button). The others go through the flag form.
+ */
 export const FLAG_TYPES = {
   confusing: {
     label: 'Confusing',
+    quick: true,
+  },
+  question: {
+    label: 'Question',
     prompt: 'Explain this in simpler language so I can keep following the lecture.',
   },
   example: {
@@ -66,6 +75,8 @@ export function useLockIn({ storageScope = null } = {}) {
   const [catchUps, setCatchUps] = useStored(stored('catchUps'), [])
 
   const transcriptState = useTranscript({ sessionId, slideNumber: current + 1 })
+  const nudge = useFocusNudge({ active: Boolean(deck) })
+  const { markActive } = nudge
   const deckKey = deck?.filename ?? ''
   const slideText = deck?.slides[current]?.text ?? ''
   const title = slideText.split('\n', 1)[0].trim()
@@ -80,14 +91,19 @@ export function useLockIn({ storageScope = null } = {}) {
   }, [sessionActive, sessionStartedAt])
 
   const onDeckReady = (nextDeck) => {
+    markActive()
     setDeck(nextDeck)
     setReading(nextDeck === null)
     setAi(null)
     setAiError('')
   }
-  const onSlideChange = (index) => setCurrent(index)
+  const onSlideChange = (index) => {
+    markActive()
+    setCurrent(index)
+  }
 
   const setNote = (text) => {
+    markActive()
     setNotesByDeck((all) => ({ ...all, [deckKey]: { ...all[deckKey], [current]: text } }))
     setSavedAt(new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }))
   }
@@ -125,6 +141,7 @@ export function useLockIn({ storageScope = null } = {}) {
   const ask = async (kind) => {
     if (!deck || aiLoading) return
 
+    markActive()
     setAiLoading(true)
     setAiError('')
     const slide = current
@@ -175,7 +192,8 @@ export function useLockIn({ storageScope = null } = {}) {
       return false
     }
 
-    const type = FLAG_TYPES[flagType] ?? FLAG_TYPES.confusing
+    markActive()
+    const type = FLAG_TYPES[flagType]?.prompt ? FLAG_TYPES[flagType] : FLAG_TYPES.question
     const selectedText = selection.selectedText?.trim()
       || window.getSelection()?.toString().trim()
       || title
@@ -250,6 +268,61 @@ export function useLockIn({ storageScope = null } = {}) {
   }
 
   /**
+   * The one-tap "?" flag: tells the lecturer this moment was confusing. No AI call,
+   * so it never waits on Gemini and works even while an answer is loading.
+   */
+  const quickFlag = async (selection = {}) => {
+    if (!deck) {
+      setAiError('Upload slides before flagging part of the lecture.')
+      return false
+    }
+    markActive()
+    const selectedText = selection.selectedText?.trim() || ''
+    const createdAt = new Date().toISOString()
+    const localFlag = {
+      id: crypto.randomUUID(),
+      filename: deckKey,
+      slide: current,
+      flagType: 'confusing',
+      text: selectedText || `Confusing moment on slide ${current + 1}`,
+      selectedText,
+      studentComment: '',
+      source: selection.source ?? 'slide',
+      highlightId: selection.highlightId ?? null,
+      createdAt,
+    }
+    setConfusions((list) => [...list, localFlag])
+    if (selection.highlightId) {
+      setHighlightsByDeck((all) => ({
+        ...all,
+        [deckKey]: (all[deckKey] ?? []).map((highlight) => (
+          highlight.id === selection.highlightId ? { ...highlight, flagType: 'confusing' } : highlight
+        )),
+      }))
+    }
+
+    try {
+      await apiRequest('/api/flags', {
+        method: 'POST',
+        body: {
+          sessionId,
+          slideNumber: current + 1,
+          flagType: 'confusing',
+          selectedText,
+          studentComment: '',
+          aiAnswer: '',
+          source: selection.source ?? 'slide',
+          timestamp: createdAt,
+        },
+      })
+      return true
+    } catch (error) {
+      setAiError(`Your flag was kept in this browser, but was not sent to the lecturer: ${error.message}`)
+      return false
+    }
+  }
+
+  /**
    * Everything worth keeping from this lecture, in the account API's LectureSnapshot
    * shape (see docs/account-api-contract.md): zero-based slides and note keys.
    */
@@ -283,6 +356,8 @@ export function useLockIn({ storageScope = null } = {}) {
     slideHighlights: (highlightsByDeck[deckKey] ?? []).filter((highlight) => highlight.slide === current),
     createSlideHighlight,
     submitFlag,
+    quickFlag,
+    nudge,
     ai,
     aiLoading,
     aiError,

@@ -8,7 +8,8 @@
   --lect-type-2: #eb6834; /* Real-world example (orange) */
   --lect-type-3: #1baf7a; /* Worked example (aqua) */
   --lect-type-4: #eda100; /* Check my thinking (yellow) */
-  --lect-type-5: #e87ba4; /* Other (magenta) */
+  --lect-type-5: #e87ba4; /* Question (magenta) */
+  --lect-type-6: #8a8f98; /* Other (neutral gray) */
 
   min-height: 100%;
   background: var(--background);

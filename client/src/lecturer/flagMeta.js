@@ -5,13 +5,15 @@ import { FLAG_TYPES } from '../lockin/useLockIn'
  * FLAG_TYPES (that's what's stored as `flagType`); labels come from there too,
  * so renaming a type in one place renames it everywhere.
  *
- * Order matters: it fixes each type's color slot (see --lect-type-* in
- * Lecturer.css) so a type keeps its color whichever types are on screen.
+ * ORDER is how types are listed. Each type also has a fixed color slot (see
+ * --lect-type-* in Lecturer.css) so it keeps its color whichever types are on screen.
  */
-const ORDER = ['confusing', 'example', 'worked_example', 'check_thinking']
+const ORDER = ['confusing', 'question', 'example', 'worked_example', 'check_thinking']
+const COLOR_SLOT = { confusing: 1, example: 2, worked_example: 3, check_thinking: 4, question: 5, other: 6 }
 
 const ADVICE = {
-  confusing: 'Re-explain it more simply, with a diagram or a step-by-step walkthrough.',
+  confusing: 'Students lost the thread here. Slow down and re-explain it more simply, with a diagram or a step-by-step walkthrough.',
+  question: 'Answer the most common questions at the start of next lecture, or add them to the slide notes.',
   example: 'Add a concrete real-world application of the idea.',
   worked_example: 'Work through one problem step by step in front of the class.',
   check_thinking: 'Pause for a quick check-in question so students can test their reasoning.',
@@ -24,12 +26,12 @@ const ALIASES = { real_world: 'example' }
 export const TYPE_IDS = [...ORDER, 'other']
 
 export const TYPE_META = Object.fromEntries(
-  TYPE_IDS.map((id, slot) => [
+  TYPE_IDS.map((id) => [
     id,
     {
       id,
       label: FLAG_TYPES[id]?.label ?? 'Other',
-      color: `var(--lect-type-${slot + 1})`,
+      color: `var(--lect-type-${COLOR_SLOT[id]})`,
       advice: ADVICE[id],
     },
   ]),

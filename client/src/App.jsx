@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   ChatIcon,
+  ChevronDownIcon,
   FlagIcon,
   HelpIcon,
   LightbulbIcon,
@@ -14,6 +15,7 @@ import {
 } from './icons'
 import { AI_LABELS, FLAG_TYPES, useLockIn } from './lockin/useLockIn'
 import SelectionFlagger from './lockin/SelectionFlagger'
+import { NUDGE_MINUTES } from './lockin/useFocusNudge'
 import { SlidePanel } from './slides'
 import './App.css'
 
@@ -142,11 +144,15 @@ export default function App({ storageScope = null, onFinish = null }) {
 
 function Notes({ li, pendingSelection, onSelection, clearSelection }) {
   const [confusion, setConfusion] = useState('')
-  const [flagType, setFlagType] = useState('confusing')
-  const [showFlags, setShowFlags] = useState(false)
+  const [flagType, setFlagType] = useState('question')
+  const [showFlags, setShowFlags] = useState(true)
+  const [quickSent, setQuickSent] = useState(false)
+  const quickTimer = useRef(null)
   const slideLabel = li.deck
     ? `Slide ${li.current + 1}${li.title ? ` · ${li.title}` : ''}`
     : 'No slides yet'
+
+  useEffect(() => () => window.clearTimeout(quickTimer.current), [])
 
   const captureNoteSelection = (event) => {
     const { selectionStart, selectionEnd, value } = event.currentTarget
@@ -154,25 +160,22 @@ function Notes({ li, pendingSelection, onSelection, clearSelection }) {
     if (selectedText) onSelection({ source: 'notes', selectedText })
   }
 
+  // One tap: flag this moment as confusing for the lecturer, no question needed.
+  const sendQuickFlag = (selection) => {
+    li.quickFlag(selection ?? {})
+    clearSelection()
+    setQuickSent(true)
+    window.clearTimeout(quickTimer.current)
+    quickTimer.current = window.setTimeout(() => setQuickSent(false), 2500)
+  }
+
   return (
     <>
-      <div className="notes__topline">
-        <p className="notes__meta">
-          <span>{li.savedAt ? `Saved ${li.savedAt}` : 'Notes autosave'}</span>
-          <span aria-hidden="true">·</span>
-          <span className="notes__slide">{slideLabel}</span>
-        </p>
-        <button
-          type="button"
-          className="notes__flags-toggle"
-          onClick={() => setShowFlags((shown) => !shown)}
-          aria-expanded={showFlags}
-        >
-          <FlagIcon /> My flags <span>{li.confusions.length}</span>
-        </button>
-      </div>
-
-      {showFlags && <FlagHistory flags={li.confusions} onGoToSlide={li.onSlideChange} />}
+      <p className="notes__meta">
+        <span>{li.savedAt ? `Saved ${li.savedAt}` : 'Notes autosave'}</span>
+        <span aria-hidden="true">·</span>
+        <span className="notes__slide">{slideLabel}</span>
+      </p>
 
       <textarea
         className="notes__editor"
@@ -199,6 +202,10 @@ function Notes({ li, pendingSelection, onSelection, clearSelection }) {
       <SelectionFlagger
         enabled={Boolean(li.deck)}
         onPick={(nextFlagType, selection) => {
+          if (FLAG_TYPES[nextFlagType]?.quick) {
+            sendQuickFlag(selection)
+            return
+          }
           setFlagType(nextFlagType)
           onSelection(selection)
         }}
@@ -217,12 +224,22 @@ function Notes({ li, pendingSelection, onSelection, clearSelection }) {
           })
         }}
       >
+        <button
+          type="button"
+          className={`btn-quick-flag ${quickSent ? 'is-sent' : ''}`}
+          onClick={() => sendQuickFlag(pendingSelection)}
+          disabled={!li.deck}
+          title="Confusing: flag this moment for the lecturer in one tap"
+          aria-label="Flag this moment as confusing"
+        >
+          {quickSent ? '✓' : '?'}
+        </button>
         <select
           value={flagType}
           onChange={(event) => setFlagType(event.target.value)}
           aria-label="Type of help needed"
         >
-          {Object.entries(FLAG_TYPES).map(([value, type]) => (
+          {Object.entries(FLAG_TYPES).filter(([, type]) => !type.quick).map(([value, type]) => (
             <option key={value} value={value}>{type.label}</option>
           ))}
         </select>
@@ -236,13 +253,29 @@ function Notes({ li, pendingSelection, onSelection, clearSelection }) {
           <FlagIcon /> Flag
         </button>
       </form>
+      <p className="notes__quick-status" aria-live="polite">
+        {quickSent ? 'Marked as confusing for your lecturer.' : ''}
+      </p>
+
+      <section className="notes__flags" aria-label="My flags">
+        <button
+          type="button"
+          className="notes__flags-toggle"
+          onClick={() => setShowFlags((shown) => !shown)}
+          aria-expanded={showFlags}
+        >
+          <FlagIcon /> My flags <span>{li.confusions.length}</span>
+          <ChevronDownIcon className={`notes__flags-chevron ${showFlags ? 'is-open' : ''}`} />
+        </button>
+        {showFlags && <FlagHistory flags={li.confusions} onGoToSlide={li.onSlideChange} />}
+      </section>
     </>
   )
 }
 
 function FlagHistory({ flags, onGoToSlide }) {
   const [filter, setFilter] = useState('all')
-  if (flags.length === 0) return <p className="notes__flags-empty">No flags yet — select a note or drag across a slide.</p>
+  if (flags.length === 0) return <p className="notes__flags-empty">No flags yet. Tap ? when something is confusing, or select a note to ask about it.</p>
 
   const counts = Object.fromEntries(Object.keys(FLAG_TYPES).map((type) => [type, 0]))
   flags.forEach((flag) => { counts[flag.flagType] = (counts[flag.flagType] ?? 0) + 1 })
@@ -277,6 +310,16 @@ function FlagHistory({ flags, onGoToSlide }) {
 
 function Helper({ li, onStartSession }) {
   const [open, setOpen] = useState(false)
+  const { nudge } = li
+
+  // Answering a nudge means writing a line: put the cursor at the end of the notes.
+  const answerNudge = () => {
+    nudge.dismiss()
+    const editor = document.querySelector('.notes__editor')
+    if (!editor) return
+    editor.focus()
+    editor.setSelectionRange(editor.value.length, editor.value.length)
+  }
 
   useEffect(() => {
     if (li.ai || li.aiError) setOpen(true)
@@ -334,18 +377,54 @@ function Helper({ li, onStartSession }) {
               )
             })}
           </div>
+          <div className="helper__settings">
+            <label className="helper__switch">
+              <input
+                type="checkbox"
+                checked={nudge.enabled}
+                onChange={(event) => nudge.setSettings({ enabled: event.target.checked })}
+              />
+              Focus nudges
+            </label>
+            <label className="helper__nudge-wait">
+              after
+              <select
+                value={nudge.minutes}
+                disabled={!nudge.enabled}
+                onChange={(event) => nudge.setSettings({ minutes: Number(event.target.value) })}
+                aria-label="Nudge after this many quiet minutes"
+              >
+                {NUDGE_MINUTES.map((minutes) => (
+                  <option key={minutes} value={minutes}>{minutes} min</option>
+                ))}
+              </select>
+              quiet
+            </label>
+          </div>
         </div>
       )}
-      <button
-        type="button"
-        className={`helper__fab ${li.listening ? 'is-listening' : ''}`}
-        onClick={handleOrb}
-        aria-label={li.sessionActive ? (open ? 'Close focus buddy' : 'Open focus buddy') : 'Start a new focus session'}
-        aria-expanded={open}
-      >
-        {open ? <XIcon /> : <ChatIcon />}
-        {!li.sessionActive && <span className="helper__fab-label">Start</span>}
-      </button>
+      <div className="helper__dock">
+        <button
+          type="button"
+          className={`helper__fab ${li.listening ? 'is-listening' : ''} ${nudge.message ? 'has-nudge' : ''}`}
+          onClick={handleOrb}
+          aria-label={li.sessionActive ? (open ? 'Close focus buddy' : 'Open focus buddy') : 'Start a new focus session'}
+          aria-expanded={open}
+        >
+          {open ? <XIcon /> : <ChatIcon />}
+          {!li.sessionActive && <span className="helper__fab-label">Start</span>}
+        </button>
+        {nudge.message && (
+          <div className="helper__nudge" role="status">
+            <button type="button" className="helper__nudge-text" onClick={answerNudge}>
+              {nudge.message}
+            </button>
+            <button type="button" className="helper__nudge-close" onClick={nudge.dismiss} aria-label="Dismiss nudge">
+              <XIcon />
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
