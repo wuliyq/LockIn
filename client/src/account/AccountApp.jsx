@@ -1,7 +1,8 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
 import App from '../App'
 import { clearLectureStorage } from '../lockin/useLockIn'
-import { previewApi, previewLecturerApi } from './previewApi'
+import { previewLecturerApi } from './previewApi'
+import { serverApi } from './serverApi'
 import LoginPage from './LoginPage'
 import LectureHome from './LectureHome'
 import './account.css'
@@ -40,7 +41,9 @@ export default function AccountApp() {
 
   if (!user) return <LoginPage onEnter={(account) => setSession({ user: account, lecture: null })} />
 
-  const api = user.role === 'lecturer' ? previewLecturerApi : previewApi
+  // Students' lecture history lives on the server. Lecturers go straight to the
+  // live dashboard, which already talks to the server itself.
+  const api = user.role === 'lecturer' ? previewLecturerApi : serverApi
   const logout = async () => setSession({ user: null, lecture: null })
 
   const startLecture = () =>

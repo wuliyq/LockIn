@@ -9,7 +9,15 @@ import * as store from "./store/index.js";
 const app = express();
 const port = process.env.PORT || 3001;
 
-app.use(cors());
+// The account pages send cookies, so CORS must name the origin rather than "*".
+// CLIENT_ORIGIN (comma-separated) for deployments; any localhost port in development.
+const allowedOrigins = process.env.CLIENT_ORIGIN?.split(",").map((origin) => origin.trim()).filter(Boolean);
+app.use(cors({
+    credentials: true,
+    origin: (origin, done) => done(null, !origin || (allowedOrigins
+        ? allowedOrigins.includes(origin)
+        : /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin))),
+}));
 // Finished lectures carry the deck's text, notes and flags, so allow larger bodies.
 app.use(express.json({ limit: "5mb" }));
 
