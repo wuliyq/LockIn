@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   ChatIcon,
   FlagIcon,
@@ -12,7 +12,7 @@ import {
   XIcon,
   ZapIcon,
 } from './icons'
-import { AI_LABELS, useLockIn } from './lockin/useLockIn'
+import { AI_LABELS, FLAG_TYPES, useLockIn } from './lockin/useLockIn'
 import { SlidePanel } from './slides'
 import './App.css'
 
@@ -59,6 +59,7 @@ export default function App() {
 
 function Notes({ li }) {
   const [confusion, setConfusion] = useState('')
+  const [flagType, setFlagType] = useState('confusing')
   const slideLabel = li.deck
     ? `Slide ${li.current + 1}${li.title ? ` · ${li.title}` : ''}`
     : 'No slides yet'
@@ -85,24 +86,33 @@ function Notes({ li }) {
         className="notes__flag-form"
         onSubmit={(e) => {
           e.preventDefault()
-          li.markConfusing(confusion)
-          setConfusion('')
+          li.submitFlag(confusion, flagType).then((sent) => {
+            if (sent) setConfusion('')
+          })
         }}
       >
+        <select
+          value={flagType}
+          onChange={(e) => setFlagType(e.target.value)}
+          aria-label="Type of help needed"
+        >
+          {Object.entries(FLAG_TYPES).map(([value, type]) => (
+            <option key={value} value={value}>{type.label}</option>
+          ))}
+        </select>
         <input
           value={confusion}
           onChange={(e) => setConfusion(e.target.value)}
           placeholder="Something unclear? Jot it here or highlight text…"
           aria-label="What's confusing"
         />
-        <button type="submit" className="btn-flag">
-          <FlagIcon /> Confusing
+        <button type="submit" className="btn-flag" disabled={li.aiLoading}>
+          <FlagIcon /> Flag
         </button>
       </form>
       {li.confusions.length > 0 && (
         <p className="notes__flag-count">
-          {li.confusions.length} confusing {li.confusions.length === 1 ? 'point' : 'points'}{' '}
-          flagged in this deck
+          {li.confusions.length} help {li.confusions.length === 1 ? 'flag' : 'flags'} in this deck
         </p>
       )}
     </>
@@ -118,8 +128,9 @@ function Transcript({ li }) {
           type="button"
           onClick={li.toggleListen}
           className={`transcript__toggle ${li.listening ? 'is-on' : ''}`}
+          disabled={li.transcriptStatus === 'connecting'}
         >
-          {li.listening ? (
+          {li.transcriptStatus === 'connecting' ? 'Connecting…' : li.listening ? (
             <>
               <MicOffIcon /> Stop
             </>
@@ -134,6 +145,7 @@ function Transcript({ li }) {
         {li.transcript.length === 0 && (
           <p className="transcript__empty">Start listening to see the lecture transcribed here.</p>
         )}
+        {li.transcriptError && <p className="transcript__error">{li.transcriptError}</p>}
         {li.transcript.map((line, i) => (
           <div key={i} className="transcript__line">
             <button
@@ -154,6 +166,11 @@ function Transcript({ li }) {
 
 function Helper({ li }) {
   const [open, setOpen] = useState(false)
+
+  // A flag can be submitted from the notes panel, so reveal its answer there.
+  useEffect(() => {
+    if (li.ai || li.aiError) setOpen(true)
+  }, [li.ai, li.aiError])
 
   return (
     <div className="helper">
@@ -177,11 +194,12 @@ function Helper({ li }) {
             {li.ai && !li.aiLoading && (
               <div className="helper__answer">
                 <b>
-                  {AI_LABELS[li.ai.kind]} · slide {li.ai.slide + 1}
+                  {li.ai.label ?? AI_LABELS[li.ai.kind]} · slide {li.ai.slide + 1}
                 </b>
                 {li.ai.text}
               </div>
             )}
+            {li.aiError && <p className="helper__error">{li.aiError}</p>}
           </div>
           <div className="helper__actions">
             {Object.entries(AI_LABELS).map(([kind, label]) => {
