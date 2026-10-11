@@ -36,6 +36,15 @@
   --flag-type-why_it_matters: #e87ba4; /* magenta */
   --flag-type-other: #8a8f98; /* neutral gray */
 
+  /* Text on the see-through flag buttons: the same hue as each color, deep enough
+     to read at 4.5:1 or better on its 20% tint (on the card and the highlight bar). */
+  --flag-type-confusing-text: #1f599e;
+  --flag-type-example-text: #964321;
+  --flag-type-catch_up-text: #106949;
+  --flag-type-check_thinking-text: #805700;
+  --flag-type-why_it_matters-text: #8b4a62;
+  --flag-type-other-text: #4e535a;
+
   --font-display: 'Fraunces', Georgia, serif;
   --font-body: 'IBM Plex Sans', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;

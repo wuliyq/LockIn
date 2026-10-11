@@ -16,8 +16,11 @@ const API_BASE_URL = (import.meta.env.VITE_API_URL ?? 'http://localhost:3001').r
  * summarises the last stretch of the recorded lecture.
  */
 export const FLAG_TYPES = {
+  // Its own button beside the recording control (not in the flag choices), but still
+  // saved and sent to the lecturer like a flag.
   catch_up: {
     label: 'Catch me up',
+    standalone: true,
   },
   example: {
     label: 'Give an example',
@@ -45,9 +48,23 @@ const LEGACY_FLAG_TYPES = { question: 'confusing', worked_example: 'example', re
 export const flagTypeId = (flagType) => LEGACY_FLAG_TYPES[flagType] ?? flagType
 
 /** A flag type's color (the --flag-type-* tokens in index.css, shared with the lecturer view). */
-export const flagColor = (flagType) => {
+export const flagColor = (flagType) => `var(--flag-type-${flagColorId(flagType)})`
+
+/** The flag choices offered after highlighting and in the focus buddy. */
+export const FLAG_ACTIONS = Object.entries(FLAG_TYPES).filter(([, type]) => !type.standalone)
+
+/** CSS variables for a tinted flag button: its color and a readable text shade of it. */
+export const flagFillStyle = (flagType) => {
+  const id = flagColorId(flagType)
+  return {
+    '--type-color': `var(--flag-type-${id})`,
+    '--type-text': `var(--flag-type-${id}-text)`,
+  }
+}
+
+const flagColorId = (flagType) => {
   const id = flagTypeId(flagType)
-  return `var(--flag-type-${FLAG_TYPES[id] ? id : 'other'})`
+  return FLAG_TYPES[id] ? id : 'other'
 }
 
 /**
