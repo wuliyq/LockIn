@@ -218,6 +218,16 @@
   border-radius: 999px;
 }
 
+.notes__flag-form select {
+  min-width: 8.5rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--foreground);
+  font-size: 0.75rem;
+}
+
 .notes__flag-count {
   margin: 0.5rem 0 0 1rem;
   font-size: 0.75rem;
@@ -266,6 +276,14 @@
   margin: 0;
   font-size: 0.75rem;
   color: var(--muted-foreground);
+}
+
+.transcript__error,
+.helper__error {
+  margin: 0;
+  color: var(--flag);
+  font-size: 0.75rem;
+  line-height: 1.35;
 }
 
 .transcript__line {
@@ -345,6 +363,7 @@
   padding: 0.75rem;
   border-radius: 0.75rem;
   background: var(--muted);
+  white-space: pre-line;
 }
 
 .helper__answer b {

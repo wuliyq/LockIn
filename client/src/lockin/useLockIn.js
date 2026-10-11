@@ -1,16 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
+import { ElevenLabsSTT } from './stt'
 
 /**
- * Workspace state for the lecture view: the uploaded deck (a DeckContext from
- * SlidePanel), the current slide, per-slide notes, confusion flags, the live
- * transcript and the helper's answers.
- *
- * The app owns the slide index and passes it to <SlidePanel index={current}>
- * (controlled mode), so the panel and the notes editor can never disagree.
- *
- * Notes and flags persist in localStorage, keyed by the deck's filename, so
- * re-uploading the same PDF brings them back.
+ * The Vite app and Express server run on different ports in development.
+ * Set VITE_API_URL when deploying; otherwise use the local Express server.
  */
+const API_BASE_URL = (import.meta.env.VITE_API_URL ?? 'http://localhost:3001').replace(/\/$/, '')
 
 export const AI_LABELS = {
   catchup: 'Catch me up',
@@ -19,28 +14,58 @@ export const AI_LABELS = {
   why: 'Why it matters',
 }
 
-export function useLockIn() {
-  const [deck, setDeck] = useState(null) // DeckContext | null (null while a new PDF is read)
-  const [reading, setReading] = useState(false) // a new PDF is open but its text isn't ready yet
-  const [current, setCurrent] = useState(0) // 0-based; SlidePanel shows this page
-  const [notesByDeck, setNotesByDeck] = useStored('lockin.notes', {}) // { [filename]: { [index]: text } }
-  const [confusions, setConfusions] = useStored('lockin.confusions', []) // [{ id, filename, slide, text }]
-  const [savedAt, setSavedAt] = useState('')
-  const [ai, setAi] = useState(null) // { kind, text, slide } | null
-  const [aiLoading, setAiLoading] = useState(false)
-  const transcript = useTranscript()
+export const FLAG_TYPES = {
+  confusing: {
+    label: 'Confusing',
+    prompt: 'Explain this in simpler language so I can keep following the lecture.',
+  },
+  example: {
+    label: 'Real-world example',
+    prompt: 'Give one short, concrete real-world example of this idea.',
+  },
+  worked_example: {
+    label: 'Worked example',
+    prompt: 'Show one short worked example, step by step.',
+  },
+  check_thinking: {
+    label: 'Check my thinking',
+    prompt: 'Check whether my thinking is on the right track and correct it briefly if needed.',
+  },
+}
 
+const HELPER_PROMPTS = {
+  example: 'Give one short, concrete example of this idea.',
+  check: 'Give me one quick understanding check about this slide, with the answer hidden in your explanation.',
+  why: 'Explain briefly why this idea matters or where I might use it.',
+}
+
+/**
+ * Workspace state for the lecture view. Notes and local flag history persist
+ * per PDF, while transcript segments and dashboard flags are sent to Express.
+ */
+export function useLockIn() {
+  const [deck, setDeck] = useState(null)
+  const [reading, setReading] = useState(false)
+  const [current, setCurrent] = useState(0)
+  const [notesByDeck, setNotesByDeck] = useStored('lockin.notes', {})
+  const [confusions, setConfusions] = useStored('lockin.confusions', [])
+  const [savedAt, setSavedAt] = useState('')
+  const [ai, setAi] = useState(null)
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiError, setAiError] = useState('')
+  const sessionId = useSessionId()
+
+  const transcriptState = useTranscript({ sessionId, slideNumber: current + 1 })
   const deckKey = deck?.filename ?? ''
   const slideText = deck?.slides[current]?.text ?? ''
   const title = slideText.split('\n', 1)[0].trim()
   const note = notesByDeck[deckKey]?.[current] ?? ''
 
-  // SlidePanel callbacks. A new upload calls onDeckReady(null) and onSlideChange(0)
-  // as soon as it opens, then onDeckReady(deck) once its text has been read.
   const onDeckReady = (nextDeck) => {
     setDeck(nextDeck)
     setReading(nextDeck === null)
     setAi(null)
+    setAiError('')
   }
   const onSlideChange = (index) => setCurrent(index)
 
@@ -49,33 +74,117 @@ export function useLockIn() {
     setSavedAt(new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }))
   }
 
-  const insertLine = (line) => setNote((note ? note + '\n' : '') + line)
+  const insertLine = (line) => setNote((note ? `${note}\n` : '') + line)
 
-  const markConfusing = (text) => {
-    const selected = window.getSelection()?.toString().trim() ?? ''
-    setConfusions((list) => [
-      ...list,
-      {
-        id: crypto.randomUUID(),
-        filename: deckKey,
-        slide: current,
-        text: text.trim() || selected || title || `Slide ${current + 1}`,
-      },
-    ])
+  const getLectureContext = () => ({
+    slideText: slideText || title || 'No extracted slide text is available.',
+    notesExcerpt: note.slice(-2000),
+    transcriptExcerpt: transcriptState.transcript.slice(-4).join(' ').slice(-4000),
+  })
+
+  const ask = async (kind) => {
+    if (!deck || aiLoading) return
+
+    setAiLoading(true)
+    setAiError('')
+    const slide = current
+
+    try {
+      if (kind === 'catchup') {
+        const recentTranscript = transcriptState.transcript.slice(-4).join(' ').trim()
+        if (!recentTranscript) {
+          throw new Error('Start the live transcript first, then LockIN can catch you up.')
+        }
+
+        const data = await apiRequest('/api/catch-up', {
+          method: 'POST',
+          body: {
+            sessionId,
+            slideNumber: current + 1,
+            recentTranscript,
+            slideText,
+          },
+        })
+        setAi({ kind, slide, text: data.summary.join('\n') })
+      } else {
+        const data = await apiRequest('/api/confusion', {
+          method: 'POST',
+          body: {
+            selectedText: title || slideText.slice(0, 500) || `Slide ${current + 1}`,
+            question: HELPER_PROMPTS[kind],
+            ...getLectureContext(),
+          },
+        })
+        setAi({ kind, slide, text: data.answer })
+      }
+    } catch (error) {
+      setAiError(error.message)
+    } finally {
+      setAiLoading(false)
+    }
   }
 
-  // Placeholder answers until the helper is wired to the server's Gemini API.
-  const askTimer = useRef(null)
-  useEffect(() => () => clearTimeout(askTimer.current), [])
-  const ask = (kind) => {
-    if (!deck) return
-    const slide = current
+  /** Save a student flag for the lecturer, then show the student a concise answer. */
+  const submitFlag = async (studentComment, flagType) => {
+    if (!deck || aiLoading) {
+      if (!deck) setAiError('Upload slides before asking LockIN about the lecture.')
+      return false
+    }
+
+    const type = FLAG_TYPES[flagType] ?? FLAG_TYPES.confusing
+    const selectedText = window.getSelection()?.toString().trim()
+      || title
+      || slideText.slice(0, 500)
+      || `Slide ${current + 1}`
+    const question = studentComment.trim()
+      ? `${type.prompt}\nStudent's note: ${studentComment.trim()}`
+      : type.prompt
+    const localFlag = {
+      id: crypto.randomUUID(),
+      filename: deckKey,
+      slide: current,
+      flagType,
+      text: studentComment.trim() || selectedText,
+    }
+
+    setConfusions((list) => [...list, localFlag])
     setAiLoading(true)
-    clearTimeout(askTimer.current)
-    askTimer.current = setTimeout(() => {
-      setAi({ kind, slide, text: placeholderAnswer(kind, slideText, slide, note) })
+    setAiError('')
+
+    let answer = ''
+    let answerError = ''
+    try {
+      const data = await apiRequest('/api/confusion', {
+        method: 'POST',
+        body: { selectedText, question, ...getLectureContext() },
+      })
+      answer = data.answer
+      setAi({ kind: flagType, label: type.label, slide: current, text: answer })
+    } catch (error) {
+      answerError = error.message
+    }
+
+    try {
+      await apiRequest('/api/flags', {
+        method: 'POST',
+        body: {
+          sessionId,
+          slideNumber: current + 1,
+          flagType,
+          selectedText,
+          studentComment: studentComment.trim(),
+          aiAnswer: answer,
+        },
+      })
+    } catch (error) {
+      setAiError(`Your flag was kept in this browser, but was not sent to the lecturer: ${error.message}`)
       setAiLoading(false)
-    }, 600)
+      return false
+    }
+
+    setAiLoading(false)
+    if (answerError) setAiError(`Your flag was sent to the lecturer. LockIN could not answer right now: ${answerError}`)
+    return true
   }
 
   return {
@@ -90,48 +199,139 @@ export function useLockIn() {
     setNote,
     insertLine,
     savedAt,
-    confusions: confusions.filter((c) => c.filename === deckKey),
-    markConfusing,
+    confusions: confusions.filter((flag) => flag.filename === deckKey),
+    submitFlag,
     ai,
     aiLoading,
+    aiError,
     ask,
-    ...transcript,
+    sessionId,
+    ...transcriptState,
   }
 }
 
-/** Live lecture transcript via the browser's Web Speech API (Chrome, Edge, Safari). */
-function useTranscript() {
-  const [listening, setListening] = useState(false)
-  const [lines, setLines] = useState([])
-  const recRef = useRef(null)
+/** Real-time ElevenLabs Scribe transcript, grouped into slide-linked segments. */
+function useTranscript({ sessionId, slideNumber }) {
+  const [status, setStatus] = useState('idle')
+  const [savedSegments, setSavedSegments] = useState([])
+  const [liveText, setLiveText] = useState('')
+  const [transcriptError, setTranscriptError] = useState('')
+  const sttRef = useRef(null)
+  const segmentSlideRef = useRef(slideNumber)
+  const segmentStartedAtRef = useRef(null)
 
-  useEffect(() => () => recRef.current?.stop(), [])
+  const saveSegment = async (text, timestamp = Date.now()) => {
+    const cleaned = text?.trim()
+    if (!cleaned) return
 
-  const toggleListen = () => {
-    if (listening) {
-      recRef.current?.stop()
-      setListening(false)
-      return
+    const segment = {
+      slideNumber: segmentSlideRef.current,
+      text: cleaned,
+      startedAt: segmentStartedAtRef.current ?? new Date(timestamp).toISOString(),
+      endedAt: new Date(timestamp).toISOString(),
     }
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
-    if (!SpeechRecognition) {
-      setLines((t) => [...t, "(Live transcript isn't supported in this browser. Try Chrome.)"])
-      return
+    setSavedSegments((items) => [...items.slice(-29), segment])
+    setLiveText('')
+    segmentStartedAtRef.current = new Date(timestamp).toISOString()
+
+    try {
+      await apiRequest('/api/transcript', {
+        method: 'POST',
+        body: { sessionId, ...segment },
+      })
+    } catch (error) {
+      setTranscriptError(`Transcript is visible here, but was not saved for catch-up: ${error.message}`)
     }
-    const rec = new SpeechRecognition()
-    rec.continuous = true
-    rec.interimResults = false
-    rec.onresult = (e) => {
-      const result = e.results[e.results.length - 1]
-      setLines((t) => [...t.slice(-30), result[0].transcript.trim()])
-    }
-    rec.onend = () => setListening(false)
-    rec.start()
-    recRef.current = rec
-    setListening(true)
   }
 
-  return { listening, toggleListen, transcript: lines }
+  // When the student moves to a new slide, close the old slide's transcript window.
+  useEffect(() => {
+    if (status === 'recording' && segmentSlideRef.current !== slideNumber) {
+      sttRef.current?.flush()
+      segmentSlideRef.current = slideNumber
+      segmentStartedAtRef.current = new Date().toISOString()
+    }
+  }, [slideNumber, status])
+
+  useEffect(() => () => {
+    sttRef.current?.stop()
+  }, [])
+
+  const toggleListen = async () => {
+    const recorder = sttRef.current
+    if (status === 'recording') {
+      recorder?.flush()
+      await recorder?.stop()
+      return
+    }
+    if (status === 'connecting') return
+
+    setTranscriptError('')
+    segmentSlideRef.current = slideNumber
+    segmentStartedAtRef.current = new Date().toISOString()
+
+    const nextRecorder = new ElevenLabsSTT({
+      autoFlushMs: 30_000,
+      getToken: async () => {
+        const data = await apiRequest('/api/stt-token', { method: 'POST' })
+        return data.token
+      },
+      onTranscript: ({ fullText }) => setLiveText(fullText),
+      onFlush: ({ flushedText, timestamp }) => saveSegment(flushedText, timestamp),
+      onStatusChange: (nextStatus) => setStatus(nextStatus),
+      onError: (error) => setTranscriptError(error.message),
+    })
+    sttRef.current = nextRecorder
+
+    try {
+      await nextRecorder.start()
+    } catch (error) {
+      setTranscriptError(error.message)
+    }
+  }
+
+  const transcript = [
+    ...savedSegments.map((segment) => segment.text),
+    ...(liveText ? [liveText] : []),
+  ]
+
+  return {
+    listening: status === 'recording',
+    transcriptStatus: status,
+    transcriptError,
+    toggleListen,
+    transcript,
+  }
+}
+
+async function apiRequest(path, { method = 'GET', body } = {}) {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method,
+    headers: body ? { 'Content-Type': 'application/json' } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  })
+  const payload = await response.json().catch(() => ({}))
+
+  if (!response.ok) {
+    throw new Error(payload.error || `Request failed with status ${response.status}.`)
+  }
+  return payload
+}
+
+function useSessionId() {
+  const [sessionId] = useState(() => {
+    const key = 'lockin.sessionId'
+    try {
+      const existing = localStorage.getItem(key)
+      if (existing) return existing
+      const created = crypto.randomUUID()
+      localStorage.setItem(key, created)
+      return created
+    } catch {
+      return crypto.randomUUID()
+    }
+  })
+  return sessionId
 }
 
 /** useState that survives reloads. Falls back to memory if storage is unavailable. */
@@ -152,28 +352,4 @@ function useStored(key, initial) {
     }
   }, [key, value])
   return [value, setValue]
-}
-
-function placeholderAnswer(kind, slideText, index, note) {
-  const lines = slideText
-    .split('\n')
-    .map((line) => line.replace(/^[•●▪◦\-–*]\s*/, '').trim())
-    .filter(Boolean)
-  const [title = `Slide ${index + 1}`, ...rest] = lines
-  const points = rest.slice(0, 2).join('; ') || 'the main idea on this slide'
-  const hint = note.trim()
-    ? ` Your notes mention “${note.trim().split(/\s+/).slice(0, 6).join(' ')}…”.`
-    : ''
-  switch (kind) {
-    case 'catchup':
-      return `${title}: the key points are ${points}.${hint}`
-    case 'example':
-      return `Example for ${title}: think of a concrete case where ${points} would change the outcome.`
-    case 'check':
-      return `Quick check: in one sentence, how does “${rest[0] ?? title}” connect to ${title}?`
-    case 'why':
-      return `Why it matters: ${title} comes up again later; understanding ${points} makes the next slides easier to follow.`
-    default:
-      return ''
-  }
 }
