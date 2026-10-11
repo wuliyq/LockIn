@@ -1,0 +1,91 @@
+.account-shell { height:100%; display:flex; flex-direction:column; }
+.account-shell__content { flex:1; min-height:0; }
+.account-loading { height:100%; display:grid; place-items:center; background:#f6f8f2; color:#385a47; }
+.account-preview-banner { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:8px 22px; background:#fff0c6; color:#705b27; font-size:11px; }
+.account-preview-banner button { text-decoration:underline; }
+.account-login { display:grid; grid-template-columns:1fr 1fr; height:100%; overflow:auto; background:#fffefa; color:var(--foreground); }
+.account-login__story { display:flex; flex-direction:column; justify-content:space-between; min-height:650px; padding:48px clamp(30px,6vw,100px); background:radial-gradient(ellipse at 90% 5%,#e6efd8,transparent 55%),#eef3e8; }
+.account-eyebrow { display:block; font-size:10px; letter-spacing:.14em; font-weight:600; color:#788974; }
+.account-login__story h1 { font:500 clamp(35px,3.7vw,58px)/1.14 var(--font-display); letter-spacing:-.025em; margin:18px 0 22px; }
+.account-login__story p { font-size:14px; line-height:1.9; color:#6c7d68; }
+.account-login__story > small { font-size:11px; color:#798973; }
+.account-login__companions { font-size:54px; letter-spacing:14px; margin:45px 0 12px; }
+.account-login__companions span { font-size:30px; }
+.account-login__form-area { display:grid; place-items:center; padding:42px 28px; }
+.account-login__form { width:100%; max-width:370px; }
+.account-login__form h2 { margin:14px 0 10px; font:500 34px var(--font-display); }
+.account-login__form > p { font-size:13px; color:#7c8877; line-height:1.6; }
+.account-login__form label { display:block; margin-top:19px; font-size:12px; font-weight:500; }
+.account-login__form input { display:block; width:100%; margin-top:8px; padding:12px 14px; border:1px solid #dbe3d5; border-radius:9px; background:white; font-size:14px; }
+.account-login__form label small { display:block; margin-top:6px; font-size:10px; color:#83907b; }
+.account-primary { display:flex; align-items:center; justify-content:space-between; gap:25px; padding:13px 17px; border-radius:9px; background:#365e49; color:#fff; font-size:13px; font-weight:500; }
+.account-primary:hover:not(:disabled) { background:#274d39; }
+.account-login__form > .account-primary { width:100%; margin-top:24px; }
+.account-login__switch { text-align:center; margin:20px 0; }
+.account-login__switch button { color:#3a624a; font-weight:600; margin-left:4px; }
+.account-role { display:flex; gap:6px; padding:4px; border-radius:9px; background:#eef2e8; margin-top:20px; }
+.account-role button { flex:1; padding:9px; border-radius:6px; font-size:11px; }
+.account-role button[aria-pressed=true] { background:white; box-shadow:0 1px 4px #233b2810; }
+.account-error { padding:12px; margin:15px 0; border:1px solid #e9c9b9; border-radius:8px; background:#fff4ec; color:#98523d !important; font-size:12px; line-height:1.6; }
+.account-error button { text-decoration:underline; margin-left:8px; }
+.account-preview { margin-top:25px; padding-top:18px; border-top:1px solid #e2e8dc; font-size:11px; color:#7b8874; }
+.account-preview summary { cursor:pointer; }
+.account-preview p { font-size:11px; line-height:1.6; }
+.account-preview > div { display:flex; gap:10px; }
+.account-preview button { border:1px solid #d6dfce; border-radius:6px; padding:7px 10px; color:#486142; }
+.account-home { height:100%; overflow:auto; background:#f6f8f2; color:var(--foreground); }
+.account-nav { display:flex; align-items:center; flex-wrap:wrap; gap:20px; padding:20px max(24px,calc((100vw - 1120px)/2)); border-bottom:1px solid #e1e7da; background:#fffefa; }
+.account-nav__role { font-size:12px; color:#7d8c74; }
+.account-nav__user { margin-left:auto; font-size:12px; color:#4a644b; }
+.account-nav > button { font-size:11px; padding:7px 11px; border:1px solid #dce3d4; border-radius:7px; }
+.account-home__main { max-width:1168px; padding:40px 24px 60px; margin:auto; }
+.account-home__intro { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:20px; }
+.account-home h1 { font:500 clamp(27px,3.3vw,39px)/1.2 var(--font-display); margin:13px 0 12px; }
+.account-home__intro p, .lecture-review > p { color:#7b8972; font-size:13px; }
+.account-home h2 { font:500 23px var(--font-display); margin:0; }
+.account-stats { display:flex; gap:40px; padding:25px 0 30px; margin-bottom:12px; }
+.account-stats strong { display:block; font:500 27px var(--font-display); }
+.account-stats span { display:block; margin-top:5px; font-size:11px; color:#85917b; }
+.account-history__title { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:15px; margin-bottom:20px; }
+.account-history__title input, .account-classes input { padding:10px 12px; border:1px solid #dce4d5; border-radius:8px; background:#fffefa; font-size:12px; min-width:0; }
+.account-lecture-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:18px; }
+.account-lecture-card { padding:22px; border:1px solid #dfe6d8; border-radius:15px; background:#fffefa; transition:box-shadow .2s; }
+.account-lecture-card:hover { box-shadow:0 5px 18px #24452a0a; }
+.account-lecture-card__top { display:flex; align-items:center; justify-content:space-between; margin-bottom:21px; }
+.account-lecture-card__top > span:first-child { display:grid; place-items:center; height:43px; width:43px; background:#eef3e3; border-radius:12px; font-size:24px; }
+.account-lecture-card__top > span:last-child { padding:4px 7px; border-radius:20px; background:#eff3e7; color:#77896a; font-size:9px; }
+.account-lecture-card > small { color:#85927a; font-size:10px; }
+.account-lecture-card h3 { font:500 21px/1.35 var(--font-display); margin:10px 0; overflow-wrap:anywhere; }
+.account-lecture-card > p { font-size:10px; color:#84907b; }
+.account-lecture-card__bottom { display:flex; justify-content:space-between; align-items:center; gap:8px; border-top:1px solid #e7ebdf; margin-top:23px; padding-top:14px; }
+.account-lecture-card__bottom > span { font-size:10px; color:#84907b; }
+.account-lecture-card__bottom button { font-size:11px; font-weight:600; color:#436448; white-space:nowrap; }
+.account-empty { padding:36px 20px; border:1px dashed #d6dfce; border-radius:14px; text-align:center; color:#7e8a74; font-size:13px; }
+.account-empty > span { font-size:30px; }
+.account-empty h3 { color:#536c4d; font-family:var(--font-display); font-weight:500; }
+.account-classes { margin-bottom:30px; border:1px solid #dfe6d8; border-radius:14px; background:#fffefa; padding:22px; }
+.account-classes form { display:flex; gap:10px; margin:18px 0; }
+.account-classes input { flex:1; }
+.account-secondary { padding:9px 13px; border:1px solid #cddcc3; border-radius:8px; color:#50714a; font-size:12px; }
+.account-classes__list { display:flex; flex-wrap:wrap; gap:12px; }
+.account-classes article { display:flex; flex-direction:column; gap:8px; padding:13px 16px; border-radius:9px; background:#f0f4e9; }
+.account-classes strong { font-size:12px; font-weight:500; }
+.account-classes span, .account-classes > p { font-size:10px; color:#85917c; }
+.account-classes code { margin-left:6px; font-size:13px; color:#3f6243; user-select:all; }
+.account-back { font-size:12px; color:#4b7048; margin-bottom:24px; display:block; }
+.account-tabs { display:flex; gap:7px; margin:27px 0 23px; border-bottom:1px solid #dce4d3; }
+.account-tabs button { padding:11px 17px; font-size:12px; color:#85917c; border-bottom:2px solid transparent; }
+.account-tabs button[aria-selected=true] { color:#3c6043; border-color:#3c6043; }
+.lecture-review__paper { background:#fffefa; border:1px solid #dfe6d8; border-radius:12px; padding:22px; margin:14px 0; }
+.lecture-review__paper h3 { display:flex; gap:12px; justify-content:space-between; margin:0 0 15px; font-size:13px; font-weight:500; }
+.lecture-review__paper small { color:#84917b; font-size:10px; }
+.lecture-review__paper p { white-space:pre-wrap; overflow-wrap:anywhere; font-size:14px; line-height:1.85; margin:0; }
+.lecture-review__paper blockquote { margin:10px 0; padding:8px 12px; border-left:3px solid #c7d8b9; color:#71846b; font-size:12px; }
+.lecture-review__answer { background:#f0f4e9; padding:15px; border-radius:8px; margin-top:18px; }
+.lecture-review__answer b { display:block; font-size:11px; margin-bottom:7px; color:#637d58; }
+.account-muted { font-size:12px; color:#86927d; }
+.account-flag-counts { display:flex; flex-wrap:wrap; gap:10px; }
+.account-flag-counts span { padding:7px 12px; border-radius:20px; background:#eaf0e1; font-size:11px; color:#678059; }
+.account-flag-counts b { margin-left:8px; }
+@media(max-width:900px) { .account-lecture-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .account-login__story { padding:35px; } }
+@media(max-width:650px) { .account-login { grid-template-columns:1fr; } .account-login__story { min-height:0; padding:23px; } .account-login__story > div,.account-login__story > small { display:none; } .account-login__form-area { padding:28px 22px; } .account-lecture-grid { grid-template-columns:1fr; } .account-nav { padding:15px 20px; gap:10px; } .account-nav__role { display:none; } .account-home__main { padding:27px 18px; } .account-stats { gap:24px; } .account-preview-banner { padding:8px 12px; font-size:10px; } .account-tabs button { padding:11px; } }

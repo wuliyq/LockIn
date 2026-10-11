@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 import {
-  ChatIcon,
   FlagIcon,
   HelpIcon,
   LightbulbIcon,
@@ -8,25 +7,37 @@ import {
   MicIcon,
   MicOffIcon,
   TargetIcon,
-  UnlockIcon,
   XIcon,
   ZapIcon,
 } from './icons'
 import { AI_LABELS, FLAG_TYPES, useLockIn } from './lockin/useLockIn'
 import SelectionFlagger from './lockin/SelectionFlagger'
 import { SlidePanel } from './slides'
+import SessionLobby from './city/SessionLobby'
 import './App.css'
 
 const AI_ICONS = { catchup: ZapIcon, example: LightbulbIcon, check: HelpIcon, why: TargetIcon }
 
-export default function App() {
-  const li = useLockIn()
+export default function App({ user, lectureApi, onHome }) {
+  const li = useLockIn({ user, lectureApi })
   const [pendingSelection, setPendingSelection] = useState(null)
-  const { bodyRef, slideWidth, resizing, beginResize } = usePanelResize()
+  const [ending, setEnding] = useState(false)
+  const [sessionError, setSessionError] = useState('')
+  const { bodyRef, slideWidth, guideWidth, resizing, beginResize, resizeByKey } = usePanelResize()
 
-  const startFocusSession = async () => {
-    li.startSession()
-    if (!li.listening && li.transcriptStatus !== 'connecting') await li.toggleListen()
+  const startFocusSession = async (recordAudio = false, options = {}) => {
+    setPendingSelection(null)
+    setSessionError('')
+    await li.startSession(options)
+    if (recordAudio && !li.listening && li.transcriptStatus !== 'connecting') await li.toggleListen()
+  }
+
+  const finishLecture = async () => {
+    setEnding(true)
+    setSessionError('')
+    try { await li.endSession() }
+    catch (error) { setSessionError(`Could not finish the session: ${error.message}`) }
+    finally { setEnding(false) }
   }
 
   const addSlideHighlight = (rect) => {
@@ -39,33 +50,36 @@ export default function App() {
     })
   }
 
+  if (!li.sessionActive) return <SessionLobby li={li} onStart={startFocusSession} onHome={onHome} preview={user.preview} />
+
   return (
-    <div className={`theme-sage app ${li.sessionActive ? 'is-focusing' : ''}`}>
+    <div className="theme-sage app app--lecture is-focusing is-quiet">
       <header className="app__header">
         <span className="app__logo">
-          {li.sessionActive ? <LockIcon /> : <UnlockIcon />} LockIN
+          <LockIcon /> LockIN
         </span>
         <span className="app__deck">
-          {li.reading ? 'Reading slides…' : (li.deck?.filename ?? 'No slides loaded')}
+          {li.reading ? 'Reading slides…' : (li.deck?.filename ?? 'Lecture workspace')}
         </span>
         <div className="app__session">
+          <span className="app__student"><span aria-hidden="true">{li.citizen.emoji}</span>{li.profileName.trim() || 'My session'}</span>
           <span className="app__focus-state">
-            {li.sessionActive ? `Focus mode · ${formatDuration(li.sessionSeconds)}` : 'Ready to focus'}
+            {formatDuration(li.sessionSeconds)}
           </span>
-          {!li.sessionActive && (
-            <button type="button" className="app__start" onClick={startFocusSession}>
-              Start session
-            </button>
-          )}
+          <button type="button" className="app__end" disabled={ending || li.aiLoading || li.transcriptStatus === 'connecting'} onClick={finishLecture}>{ending ? 'Finishing…' : 'Finish lecture'}</button>
         </div>
       </header>
+
+      {sessionError && <p className="app__session-error" role="alert">{sessionError}</p>}
+      {li.syncError && <p className="app__session-error" role="alert">Your notes are kept on this device but have not synced: {li.syncError}</p>}
 
       <div
         className={`app__body ${resizing ? 'is-resizing' : ''}`}
         ref={bodyRef}
-        style={{ '--slides-width': `${slideWidth}%` }}
+        style={{ '--slides-track': `${slideWidth}fr`, '--notes-track': `${100 - slideWidth - guideWidth}fr`, '--guide-track': `${guideWidth}fr` }}
       >
         <section className="app__slides" aria-label="Lecture slides">
+          <div className="workspace-sign"><strong>Slides</strong></div>
           <div className="app__slide-box">
             <SlidePanel
               index={li.current}
@@ -85,10 +99,16 @@ export default function App() {
           role="separator"
           aria-label="Resize slides and notes panels"
           aria-orientation="vertical"
-          onPointerDown={beginResize}
+          tabIndex={0}
+          aria-valuenow={Math.round(slideWidth)}
+          aria-valuemin={28}
+          aria-valuemax={Math.min(52, 72 - guideWidth)}
+          onKeyDown={(event) => resizeByKey(event, 'slides')}
+          onPointerDown={(event) => beginResize(event, 'slides')}
         />
 
         <section className="app__notes" aria-label="Notes and flags">
+          <div className="workspace-sign"><strong>My notes</strong></div>
           <Notes
             li={li}
             pendingSelection={pendingSelection}
@@ -96,9 +116,24 @@ export default function App() {
             clearSelection={() => setPendingSelection(null)}
           />
         </section>
-      </div>
 
-      <Helper li={li} onStartSession={startFocusSession} />
+        <div
+          className="app__resize-handle app__resize-handle--guide"
+          role="separator"
+          aria-label="Resize notes and city guide panels"
+          aria-orientation="vertical"
+          tabIndex={0}
+          aria-valuenow={Math.round(guideWidth)}
+          aria-valuemin={18}
+          aria-valuemax={Math.min(32, 72 - slideWidth)}
+          onKeyDown={(event) => resizeByKey(event, 'guide')}
+          onPointerDown={(event) => beginResize(event, 'guide')}
+        />
+
+        <aside className="app__guide" aria-label="Study helper">
+          <Helper li={li} />
+        </aside>
+      </div>
     </div>
   )
 }
@@ -121,7 +156,7 @@ function Notes({ li, pendingSelection, onSelection, clearSelection }) {
     <>
       <div className="notes__topline">
         <p className="notes__meta">
-          <span>{li.savedAt ? `Saved ${li.savedAt}` : 'Notes autosave'}</span>
+          <span>{li.syncStatus || (li.savedAt ? `Saved on device ${li.savedAt}` : 'Notes autosave')}</span>
           <span aria-hidden="true">·</span>
           <span className="notes__slide">{slideLabel}</span>
         </p>
@@ -146,14 +181,14 @@ function Notes({ li, pendingSelection, onSelection, clearSelection }) {
         onSelect={captureNoteSelection}
         placeholder={
           li.deck
-            ? 'Write freely. Select text to turn it into a flag.'
-            : 'Upload your slides to keep notes linked to each slide, or just start writing.'
+            ? 'Write your notes here. Select a passage to ask a question.'
+            : 'Upload lecture slides to start taking notes alongside them.'
         }
       />
 
       {pendingSelection && (
         <div className="notes__selection">
-          <span>{pendingSelection.source === 'notes' ? '📝 Note selected' : '🖍 Slide area selected'}</span>
+          <span>{pendingSelection.source === 'notes' ? 'Note selected' : 'Slide area selected'}</span>
           <b>{truncate(pendingSelection.selectedText, 54)}</b>
           <button type="button" onClick={clearSelection} aria-label="Clear selected text">×</button>
         </div>
@@ -192,11 +227,11 @@ function Notes({ li, pendingSelection, onSelection, clearSelection }) {
         <input
           value={confusion}
           onChange={(event) => setConfusion(event.target.value)}
-          placeholder="Add a question, then flag it"
+          placeholder="What would you like to understand?"
           aria-label="Question or note about selected content"
         />
         <button type="submit" className="btn-flag" disabled={li.aiLoading}>
-          <FlagIcon /> Flag
+          <FlagIcon /> Pin it
         </button>
       </form>
     </>
@@ -205,7 +240,7 @@ function Notes({ li, pendingSelection, onSelection, clearSelection }) {
 
 function FlagHistory({ flags, onGoToSlide }) {
   const [filter, setFilter] = useState('all')
-  if (flags.length === 0) return <p className="notes__flags-empty">No flags yet — select a note or drag across a slide.</p>
+  if (flags.length === 0) return <p className="notes__flags-empty">No flags yet — select a note or highlight a slide to ask a question.</p>
 
   const counts = Object.fromEntries(Object.keys(FLAG_TYPES).map((type) => [type, 0]))
   flags.forEach((flag) => { counts[flag.flagType] = (counts[flag.flagType] ?? 0) + 1 })
@@ -225,7 +260,7 @@ function FlagHistory({ flags, onGoToSlide }) {
       </div>
       {[...shown].reverse().map((flag) => (
         <article className="flag-card" key={flag.id}>
-          <span className="flag-card__type">{FLAG_TYPES[flag.flagType]?.label ?? 'Flag'}</span>
+          <span className="flag-card__type">📍 {FLAG_TYPES[flag.flagType]?.label ?? 'Report'}</span>
           <button type="button" className="flag-card__source" onClick={() => onGoToSlide(flag.slide)}>
             {flag.source === 'notes' ? 'Note' : 'Slide'} {flag.slide + 1} · {formatTime(flag.createdAt)}
           </button>
@@ -238,36 +273,27 @@ function FlagHistory({ flags, onGoToSlide }) {
   )
 }
 
-function Helper({ li, onStartSession }) {
-  const [open, setOpen] = useState(false)
-
-  useEffect(() => {
-    if (li.ai || li.aiError) setOpen(true)
-  }, [li.ai, li.aiError])
-
-  const handleOrb = async () => {
-    if (!li.sessionActive) {
-      setOpen(true)
-      await onStartSession()
-      return
-    }
-    setOpen((shown) => !shown)
-  }
+function Helper({ li }) {
+  const [panel, setPanel] = useState({ open: true, seen: null })
+  const notification = li.aiError || li.ai
+  const open = panel.open || Boolean(notification && notification !== panel.seen)
+  const setOpen = (shown) => setPanel({ open: shown, seen: notification })
 
   return (
-    <div className="helper">
+    <div className={`helper ${open ? 'is-open' : 'is-closed'}`}>
       {open && (
-        <div className="helper__panel" role="dialog" aria-label="LockIN focus buddy">
+        <div className="helper__panel" role="region" aria-label="LockIN study helper">
           <div className="helper__head">
-            <span><ChatIcon /> Focus buddy <em>✦</em></span>
+            <span><span className="helper__citizen">{li.citizen.emoji}</span> Study helper</span>
             <button type="button" onClick={() => setOpen(false)} aria-label="Close helper"><XIcon /></button>
           </div>
           <div className="helper__body" aria-live="polite">
             <p className="helper__status">
-              {li.listening ? '● Recording quietly in the background' : li.sessionActive ? 'Ready when you need a nudge' : 'Tap the orb to begin your focus session'}
+              {li.listening ? '● Recording lecture audio' : 'Ready when you need a hand.'}
             </p>
+            {!li.ai && !li.aiLoading && <div className="helper__welcome"><strong>Here for the tricky parts.</strong><p>Highlight a slide or a passage in your notes to ask a question. Use catch-up when you need to find your place.</p></div>}
             {li.transcriptError && <p className="helper__error">{li.transcriptError}</p>}
-            {li.aiLoading && <p className="muted">Thinking…</p>}
+            {li.aiLoading && <p className="helper__thinking"><span aria-hidden="true">{li.citizen.emoji}</span> Looking through our notes<span className="helper__dots" aria-hidden="true"><i /><i /><i /></span></p>}
             {li.ai && !li.aiLoading && (
               <div className="helper__answer">
                 <b>{li.ai.label ?? AI_LABELS[li.ai.kind]} · slide {li.ai.slide + 1}</b>
@@ -279,7 +305,7 @@ function Helper({ li, onStartSession }) {
           <div className="helper__actions">
             {li.sessionActive && (
               <button type="button" onClick={li.toggleListen} className={`chip helper__record ${li.listening ? 'is-active' : ''}`}>
-                {li.listening ? <MicOffIcon /> : <MicIcon />} {li.listening ? 'Stop recording' : 'Start recording'}
+                {li.listening ? <MicOffIcon /> : <MicIcon />} {li.listening ? 'Stop recording' : 'Record lecture'}
               </button>
             )}
             {Object.entries(AI_LABELS).map(([kind, label]) => {
@@ -299,49 +325,64 @@ function Helper({ li, onStartSession }) {
           </div>
         </div>
       )}
-      <button
+      {!open && <button
         type="button"
         className={`helper__fab ${li.listening ? 'is-listening' : ''}`}
-        onClick={handleOrb}
-        aria-label={li.sessionActive ? (open ? 'Close focus buddy' : 'Open focus buddy') : 'Start a new focus session'}
+        onClick={() => setOpen(true)}
+        aria-label="Open study helper"
         aria-expanded={open}
       >
-        {open ? <XIcon /> : <ChatIcon />}
-        {!li.sessionActive && <span className="helper__fab-label">Start</span>}
-      </button>
+        <span className="helper__avatar">{li.citizen.emoji}</span>
+      </button>}
     </div>
   )
 }
 
 function usePanelResize() {
   const bodyRef = useRef(null)
-  const [slideWidth, setSlideWidth] = useState(52)
-  const [resizing, setResizing] = useState(false)
+  const [slideWidth, setSlideWidth] = useState(40)
+  const [guideWidth, setGuideWidth] = useState(23)
+  const [resizing, setResizing] = useState(null)
 
   useEffect(() => {
     if (!resizing) return undefined
     const update = (event) => {
       const rect = bodyRef.current?.getBoundingClientRect()
       if (!rect) return
-      const next = ((event.clientX - rect.left) / rect.width) * 100
-      setSlideWidth(Math.min(70, Math.max(32, next)))
+      if (resizing === 'slides') {
+        const next = ((event.clientX - rect.left) / rect.width) * 100
+        setSlideWidth(Math.min(52, 72 - guideWidth, Math.max(28, next)))
+      } else {
+        const next = ((rect.right - event.clientX) / rect.width) * 100
+        setGuideWidth(Math.min(32, 72 - slideWidth, Math.max(18, next)))
+      }
     }
     const stop = () => setResizing(false)
     window.addEventListener('pointermove', update)
     window.addEventListener('pointerup', stop)
+    window.addEventListener('pointercancel', stop)
     return () => {
       window.removeEventListener('pointermove', update)
       window.removeEventListener('pointerup', stop)
+      window.removeEventListener('pointercancel', stop)
     }
-  }, [resizing])
+  }, [resizing, slideWidth, guideWidth])
 
   return {
     bodyRef,
     slideWidth,
+    guideWidth,
     resizing,
-    beginResize: (event) => {
+    resizeByKey: (event, panel) => {
+      if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return
       event.preventDefault()
-      setResizing(true)
+      const step = event.key === 'ArrowRight' ? 2 : -2
+      if (panel === 'slides') setSlideWidth(Math.min(52, 72 - guideWidth, Math.max(28, slideWidth + step)))
+      else setGuideWidth(Math.min(32, 72 - slideWidth, Math.max(18, guideWidth - step)))
+    },
+    beginResize: (event, panel) => {
+      event.preventDefault()
+      setResizing(panel)
     },
   }
 }

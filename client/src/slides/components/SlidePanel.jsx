@@ -162,12 +162,12 @@ export default function SlidePanel({ index: controlledIndex, onDeckReady, onSlid
     return (
       <div className="slide-panel slide-panel--empty">
         {fileInput}
-        <p className="slide-panel__prompt">Upload slides or notes</p>
+          <p className="slide-panel__prompt">Your lecture starts here</p>
         <button type="button" className="slide-panel__button" onClick={chooseFile}>
           Choose PDF
         </button>
         <p className="slide-panel__status" role="status">
-          {opening ? `Opening ${opening}…` : 'No PDF loaded'}
+          {opening ? `Opening ${opening}…` : 'Choose a PDF of your lecture slides'}
         </p>
         {errorLine}
       </div>
@@ -223,7 +223,7 @@ export default function SlidePanel({ index: controlledIndex, onDeckReady, onSlid
         </button>
       </div>
 
-      <p className="slide-panel__hint">Drag across a slide area to mark it for a question.</p>
+      <p className="slide-panel__hint">Drag across the slide to highlight a part you want to ask about.</p>
 
       {/* Scanned PDFs (or failed extraction) still display; say plainly what that means. */}
       {deck && !deck.hasTextLayer && (
