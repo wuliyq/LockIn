@@ -3,7 +3,8 @@
   "scripts": {
     "dev": "node server/index.js",
     "start": "node server/index.js",
-    "db:reset": "createdb lockin 2>/dev/null; psql lockin -v ON_ERROR_STOP=1 -q -f server/db/schema.sql"
+    "db:reset": "createdb lockin 2>/dev/null; psql lockin -v ON_ERROR_STOP=1 -q -f server/db/schema.sql",
+    "test": "createdb lockin_test 2>/dev/null; node --test \"server/**/*.test.js\""
   },
   "dependencies": {
     "@google/genai": "^2.28.0",
