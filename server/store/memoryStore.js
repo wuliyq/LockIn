@@ -107,6 +107,12 @@ export async function updateLecture(lectureId, changes = {}) {
     // Validate everything before touching the row, as one UPDATE statement would.
     const next = { ...lecture };
     if (changes.title !== undefined) next.title = optionalText(changes.title);
+    if (changes.filename !== undefined) next.filename = optionalText(changes.filename);
+    if (changes.startedAt !== undefined) {
+        const startedAt = dateOf(changes.startedAt, "startedAt");
+        next.startedAt = startedAt.toISOString();
+        next.lectureDate = lectureDateOf(startedAt);
+    }
     if (changes.endedAt !== undefined) {
         next.endedAt = changes.endedAt === null ? null : dateOf(changes.endedAt, "endedAt").toISOString();
     }
@@ -414,3 +420,11 @@ export async function resetClass(classCode) {
 
 /** Always ready; nothing to connect to. */
 export async function ready() {}
+
+export async function listClasses(lecturerId) {
+    const lecturer = requireId(lecturerId, "lecturerId");
+    return [...classes.values()]
+        .filter((c) => c.lecturerId === lecturer)
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || byCode(b.id, a.id))
+        .map((c) => ({ ...c }));
+}

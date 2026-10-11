@@ -32,6 +32,7 @@ export const {
     dashboardFlags,
     dashboardQuestions,
     resetClass,
+    listClasses,
     ready,
 } = impl;
 

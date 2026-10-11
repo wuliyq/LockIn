@@ -10,7 +10,8 @@ const app = express();
 const port = process.env.PORT || 3001;
 
 app.use(cors());
-app.use(express.json({ limit: "1mb" }));
+// Finished lectures carry the deck's text, notes and flags, so allow larger bodies.
+app.use(express.json({ limit: "5mb" }));
 
 app.get("/api/health", (reg, res) => {
     res.json({
@@ -278,7 +279,189 @@ app.post("/api/demo/seed", async (req, res) => {
     }
 });
 
+// ── Lecture history and classes (the account pages) ─────────────────────────
+// The account pages call these through the client's /api proxy with credentials.
+// As docs/account-api-contract.md says, who you are comes from a cookie, never from
+// an id the client sends. There's no sign-in yet, so each browser gets an anonymous
+// id in an HttpOnly cookie the first time it uses these routes.
+
+app.use(["/api/lectures", "/api/classes"], (req, res, next) => {
+    req.accountId = accountIdFor(req, res);
+    next();
+});
+
+/** The signed-in browser's lectures, newest first. */
+app.get("/api/lectures", async (req, res) => {
+    try {
+        const history = await store.listLectures(req.accountId);
+        const lectures = await Promise.all(
+            history.map(async (row) => lectureSummary(row, (await store.getLecture(row.id))?.snapshot)),
+        );
+        return res.json({ lectures });
+    } catch (error) {
+        return sendError(res, error, "LockIn could not load your lectures.");
+    }
+});
+
+/** Start a lecture. A blank class code is independent study; an unknown one is refused. */
+app.post("/api/lectures", async (req, res) => {
+    const { title, classCode } = req.body;
+    try {
+        const lecture = await store.startLecture({
+            studentId: req.accountId,
+            classCode,
+            title: title || "Untitled lecture",
+        });
+        return res.status(201).json({
+            lecture: { id: lecture.id, title: lecture.title, started_at: lecture.startedAt },
+        });
+    } catch (error) {
+        return sendError(res, error, "LockIn could not start this lecture.");
+    }
+});
+
+/** One lecture for the review page: summary fields plus the saved snapshot. Owner only. */
+app.get("/api/lectures/:id", async (req, res) => {
+    try {
+        const lecture = await ownLecture(req);
+        const row = (await store.listLectures(req.accountId)).find((item) => item.id === lecture.id);
+        const snapshot = lecture.snapshot ?? {};
+        return res.json({
+            lecture: {
+                ...lectureSummary(row, snapshot),
+                snapshot,
+                flags: Array.isArray(snapshot.flags) ? snapshot.flags : [],
+                catchUps: Array.isArray(snapshot.catchUps) ? snapshot.catchUps : [],
+            },
+        });
+    } catch (error) {
+        return sendError(res, error, "LockIn could not open this lecture.");
+    }
+});
+
+/** Autosave. Owner only. */
+app.patch("/api/lectures/:id", async (req, res) => {
+    try {
+        const lecture = await ownLecture(req);
+        const snapshot = snapshotFrom(req.body);
+        await store.updateLecture(lecture.id, { snapshot, filename: snapshot.filename });
+        return res.json({ saved: true });
+    } catch (error) {
+        return sendError(res, error, "LockIn could not save this lecture.");
+    }
+});
+
+/**
+ * Finish: save the final snapshot and set ended_at on the server clock. The client
+ * creates the lecture when it finishes, so the start is moved back by the lecture's
+ * length (snapshot.seconds) to when it really began.
+ */
+app.post("/api/lectures/:id/finish", async (req, res) => {
+    try {
+        const lecture = await ownLecture(req);
+        const snapshot = snapshotFrom(req.body);
+        const endedAt = new Date();
+        const seconds = Number(snapshot.seconds);
+        const changes = { snapshot, filename: snapshot.filename, endedAt };
+        if (Number.isFinite(seconds) && seconds > 0) {
+            const start = new Date(endedAt.getTime() - seconds * 1000);
+            if (start < new Date(lecture.startedAt)) changes.startedAt = start;
+        }
+        await store.updateLecture(lecture.id, changes);
+        return res.json({ saved: true });
+    } catch (error) {
+        return sendError(res, error, "LockIn could not finish this lecture.");
+    }
+});
+
+/** A lecturer's classes. */
+app.get("/api/classes", async (req, res) => {
+    try {
+        const classes = await store.listClasses(req.accountId);
+        return res.json({ classes: classes.map(({ id, title, code }) => ({ id, title, code })) });
+    } catch (error) {
+        return sendError(res, error, "LockIn could not load your classes.");
+    }
+});
+
+/** Create a class with a server-generated join code. */
+app.post("/api/classes", async (req, res) => {
+    for (let attempt = 0; ; attempt++) {
+        try {
+            const created = await store.createClass({ lecturerId: req.accountId, title: req.body.title, code: newClassCode() });
+            return res.status(201).json({ classroom: { id: created.id, title: created.title, code: created.code } });
+        } catch (error) {
+            // A taken code: try another. Anything else (e.g. a missing title) goes back as is.
+            if (error.kind === "conflict" && attempt < 5) continue;
+            return sendError(res, error, "LockIn could not create this class.");
+        }
+    }
+});
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
+
+const ACCOUNT_COOKIE = "lockin_uid";
+
+/** This browser's anonymous account id from its cookie, setting one on first use. */
+function accountIdFor(req, res) {
+    const existing = readCookie(req, ACCOUNT_COOKIE);
+    if (store.isId(existing)) return existing.toLowerCase();
+    const id = crypto.randomUUID();
+    res.cookie(ACCOUNT_COOKIE, id, { httpOnly: true, sameSite: "lax", path: "/", maxAge: 365 * 86_400_000 });
+    return id;
+}
+
+function readCookie(req, name) {
+    for (const part of (req.headers.cookie ?? "").split(";")) {
+        const [key, ...value] = part.trim().split("=");
+        if (key === name) return decodeURIComponent(value.join("="));
+    }
+    return null;
+}
+
+/** The lecture in the URL, if this browser owns it. Someone else's looks the same as a missing one. */
+async function ownLecture(req) {
+    const lecture = await store.getLecture(req.params.id);
+    if (!lecture || lecture.studentId !== req.accountId) {
+        throw new store.StoreError("not_found", "Lecture not found.");
+    }
+    return lecture;
+}
+
+function snapshotFrom(body) {
+    const snapshot = body?.snapshot;
+    if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) {
+        throw new store.StoreError("invalid", "snapshot is required.");
+    }
+    return snapshot;
+}
+
+/** The fields the lecture list shows. Counts come from the saved snapshot, as the client computes them. */
+function lectureSummary(row, snapshot) {
+    const notes = snapshot?.notes && typeof snapshot.notes === "object" ? Object.values(snapshot.notes) : [];
+    const seconds = Number(snapshot?.seconds);
+    return {
+        id: row.id,
+        title: row.title,
+        class_title: row.classTitle,
+        student_name: null,
+        started_at: row.startedAt,
+        ended_at: row.endedAt,
+        filename: row.filename ?? snapshot?.filename ?? null,
+        seconds: Number.isFinite(seconds) && seconds > 0
+            ? Math.floor(seconds)
+            : row.endedAt ? Math.floor((Date.parse(row.endedAt) - Date.parse(row.startedAt)) / 1000) : 0,
+        notePages: notes.filter((note) => typeof note === "string" && note.trim()).length,
+        flagCount: Array.isArray(snapshot?.flags) ? snapshot.flags.length : row.flagCount,
+    };
+}
+
+// Join codes students can read out loud: no 0/O or 1/I.
+const CODE_LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+function newClassCode() {
+    return Array.from({ length: 6 }, () => CODE_LETTERS[Math.floor(Math.random() * CODE_LETTERS.length)]).join("");
+}
+
 
 // The client calls real-world requests "example"; the database calls them "real_world".
 const toStoredType = (flagType) => (flagType === "example" ? "real_world" : flagType);

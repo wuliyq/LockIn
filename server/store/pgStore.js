@@ -153,6 +153,9 @@ export async function updateLecture(lectureId, changes = {}) {
         sets.push(`${column} = $${params.length}`);
     };
     if (changes.title !== undefined) set("title", optionalText(changes.title));
+    if (changes.filename !== undefined) set("filename", optionalText(changes.filename));
+    // Server-computed only (e.g. finish time minus the lecture's length); lecture_date follows.
+    if (changes.startedAt !== undefined) set("started_at", dateOf(changes.startedAt, "startedAt"));
     if (changes.endedAt !== undefined) {
         set("ended_at", changes.endedAt === null ? null : dateOf(changes.endedAt, "endedAt"));
     }
@@ -519,4 +522,14 @@ export async function ready() {
             : "Is Postgres running? brew services start postgresql@16";
         throw new Error(`Postgres isn't ready (${error.message}). ${fix} Or set USE_MEMORY=1.`);
     }
+}
+
+/** Classes a lecturer created, newest first. */
+export async function listClasses(lecturerId) {
+    const lecturer = requireId(lecturerId, "lecturerId");
+    const { rows } = await run(
+        "SELECT * FROM classes WHERE lecturer_id = $1 ORDER BY created_at DESC, id DESC",
+        [lecturer],
+    );
+    return rows.map(toClass);
 }

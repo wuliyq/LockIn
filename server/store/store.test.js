@@ -110,6 +110,27 @@ function contract(name, load) {
             await rejectsWith(store.updateLecture(lecture.id, { endedAt: "not a time" }), "invalid");
         });
 
+        test("finishing can set the file name and move the start time (and its date)", async (t) => {
+            if (!store) return t.skip("store unavailable");
+            const lecture = await store.startLecture({ studentId: id(), title: "Late save" });
+            const startedAt = "2026-10-08T03:30:00.000Z"; // 11:30pm on the 7th in New York
+            const updated = await store.updateLecture(lecture.id, { filename: " deck.pdf ", startedAt });
+            assert.deepEqual([updated.filename, updated.startedAt, updated.lectureDate], ["deck.pdf", startedAt, "2026-10-07"]);
+            assert.deepEqual(await store.getLecture(lecture.id), updated);
+            await rejectsWith(store.updateLecture(lecture.id, { startedAt: "nope" }), "invalid");
+        });
+
+        test("a lecturer's classes, newest first, only their own", async (t) => {
+            if (!store) return t.skip("store unavailable");
+            const lecturerId = id();
+            const first = await store.createClass({ lecturerId, title: "First", code: `first${Math.floor(Math.random() * 1e9)}` });
+            await sleep(5);
+            const second = await store.createClass({ lecturerId, title: "Second", code: `second${Math.floor(Math.random() * 1e9)}` });
+            await store.createClass({ lecturerId: id(), title: "Not mine", code: `other${Math.floor(Math.random() * 1e9)}` });
+            assert.deepEqual(await store.listClasses(lecturerId), [second, first]);
+            assert.deepEqual(await store.listClasses(id()), []);
+        });
+
         test("lecture history is newest first, with class title and flag count", async (t) => {
             if (!store) return t.skip("store unavailable");
             const studentId = id();
