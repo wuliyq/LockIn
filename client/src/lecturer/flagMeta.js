@@ -8,11 +8,11 @@ import { FLAG_TYPES, flagTypeId } from '../lockin/useLockIn'
  * ORDER is how types are listed. Each type also has a fixed color slot (see
  * --lect-type-* in Lecturer.css) so it keeps its color whichever types are on screen.
  */
-const ORDER = ['question', 'example', 'worked_example', 'check_thinking']
-const COLOR_SLOT = { question: 1, example: 2, worked_example: 3, check_thinking: 4, other: 5 }
+const ORDER = ['confusing', 'example', 'worked_example', 'check_thinking']
+const COLOR_SLOT = { confusing: 1, example: 2, worked_example: 3, check_thinking: 4, other: 5 }
 
 const ADVICE = {
-  question: 'Re-explain it more simply, with a diagram or a step-by-step walkthrough, and answer the common questions at the start of next lecture.',
+  confusing: 'Re-explain it more simply, with a diagram or a step-by-step walkthrough.',
   example: 'Add a concrete real-world application of the idea.',
   worked_example: 'Work through one problem step by step in front of the class.',
   check_thinking: 'Pause for a quick check-in question so students can test their reasoning.',

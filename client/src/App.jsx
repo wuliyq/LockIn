@@ -144,7 +144,7 @@ export default function App({ storageScope = null, onFinish = null }) {
 
 function Notes({ li, pendingSelection, onSelection, clearSelection }) {
   const [confusion, setConfusion] = useState('')
-  const [flagType, setFlagType] = useState('question')
+  const [flagType, setFlagType] = useState('confusing')
   const [showFlags, setShowFlags] = useState(true)
   const split = useFlagsResize()
   const slideLabel = li.deck

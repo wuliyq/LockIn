@@ -16,8 +16,8 @@ export const AI_LABELS = {
 }
 
 export const FLAG_TYPES = {
-  question: {
-    label: 'Question',
+  confusing: {
+    label: 'Confusing',
     prompt: 'Explain this in simpler language so I can keep following the lecture.',
   },
   example: {
@@ -34,8 +34,8 @@ export const FLAG_TYPES = {
   },
 }
 
-// Flags saved before "Confusing" was renamed "Question" still read as questions.
-const LEGACY_FLAG_TYPES = { confusing: 'question' }
+// Flags saved while this type was briefly called "question" read as Confusing.
+const LEGACY_FLAG_TYPES = { question: 'confusing' }
 
 /** The current id for any stored flagType (old ids map to their new name). */
 export const flagTypeId = (flagType) => LEGACY_FLAG_TYPES[flagType] ?? flagType
@@ -191,7 +191,7 @@ export function useLockIn({ storageScope = null } = {}) {
     }
 
     markActive()
-    const type = FLAG_TYPES[flagType]?.prompt ? FLAG_TYPES[flagType] : FLAG_TYPES.question
+    const type = FLAG_TYPES[flagType]?.prompt ? FLAG_TYPES[flagType] : FLAG_TYPES.confusing
     const selectedText = selection.selectedText?.trim()
       || window.getSelection()?.toString().trim()
       || title

@@ -4,7 +4,7 @@ import { request as backendRequest } from './api.js'
 // No passwords or real-account data are stored here.
 const KEY = 'lockin.ui-preview.v1'
 const sampleFlags = [
-  { id: 'sample-flag', slide: 0, flagType: 'question', source: 'notes', selectedText: 'We take a small step in the opposite direction', studentComment: 'Why do we move the opposite way?', text: 'Why do we move the opposite way?', aiAnswer: 'The gradient points toward increasing loss. Moving opposite helps reduce it.', createdAt: '2026-10-10T14:12:00Z' },
+  { id: 'sample-flag', slide: 0, flagType: 'confusing', source: 'notes', selectedText: 'We take a small step in the opposite direction', studentComment: 'Why do we move the opposite way?', text: 'Why do we move the opposite way?', aiAnswer: 'The gradient points toward increasing loss. Moving opposite helps reduce it.', createdAt: '2026-10-10T14:12:00Z' },
 ]
 function initial() {
   return {
