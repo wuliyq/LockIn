@@ -644,6 +644,6 @@ try {
     process.exit(1);
 }
 
-app.listen(port, () => {
-    console.log(`LockIn backend is running at http://localhost:${port} (${store.storeKind} store)`);
+const server = app.listen(port, '0.0.0.0', () => {
+    console.log(`LockIn backend is running at http://localhost:${server.address().port} (${store.storeKind} store)`);
 });

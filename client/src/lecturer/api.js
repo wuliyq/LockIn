@@ -1,5 +1,5 @@
-/** Same server as the student app: VITE_API_URL when deployed, else the local Express server. */
-export const API_BASE_URL = (import.meta.env.VITE_API_URL ?? 'http://localhost:3001').replace(/\/$/, '')
+/** Same origin/proxy as student requests; never another laptop's localhost. */
+export const API_BASE_URL = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '')
 
 export async function apiRequest(path, { method = 'GET', body, signal } = {}) {
   let response
@@ -12,7 +12,7 @@ export async function apiRequest(path, { method = 'GET', body, signal } = {}) {
     })
   } catch (error) {
     if (error.name === 'AbortError') throw error
-    throw new Error(`Can't reach the LockIN server at ${API_BASE_URL}. Is it running?`)
+    throw new Error(`Can't reach the LockIN server${API_BASE_URL ? ` at ${API_BASE_URL}` : ''}. Is it running?`, { cause: error })
   }
   const payload = await response.json().catch(() => ({}))
   if (!response.ok) throw new Error(payload.error || `Request failed with status ${response.status}.`)
