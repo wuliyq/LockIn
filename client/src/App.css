@@ -1,16 +1,31 @@
 /* Sage layout. Colors come from the theme tokens in index.css. */
 
 .app {
+  position: relative;
   height: 100%;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
   background: var(--background);
   color: var(--foreground);
+}
+
+.app::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.35;
+  background-image: radial-gradient(var(--cue) 0.7px, transparent 0.7px);
+  background-size: 17px 17px;
+  mask-image: linear-gradient(to bottom, black, transparent 65%);
 }
 
 /* --- Header ------------------------------------------------------------------ */
 
 .app__header {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -43,28 +58,50 @@
   white-space: nowrap;
 }
 
-.app__header-spacer {
-  width: 5.5rem; /* about the logo's width */
-  flex-shrink: 0;
+.app__session {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  min-width: 11rem;
+}
+
+.app__focus-state {
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.app.is-focusing .app__focus-state {
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.app__start {
+  padding: 0.4rem 0.75rem;
+  border-radius: 999px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-size: 0.75rem;
+  font-weight: 700;
 }
 
 /* --- Two halves ---------------------------------------------------------------- */
 
 .app__body {
+  position: relative;
+  z-index: 1;
   flex: 1;
   min-height: 0;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(20rem, var(--slides-width)) 0.75rem minmax(22rem, 1fr);
 }
 
 .app__slides {
-  width: 50%;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
-  padding: 1.5rem 1.5rem 6rem; /* bottom room for the helper button */
+  padding: 1.5rem;
   overflow: auto;
-  border-right: 1px solid var(--border);
 }
 
 /* SlidePanel fills this box and scales the page to fit; the transcript sits below. */
@@ -82,9 +119,29 @@
   padding: 1.5rem;
 }
 
+.app__resize-handle {
+  position: relative;
+  z-index: 2;
+  cursor: col-resize;
+  background: linear-gradient(to right, transparent 38%, var(--border) 38%, var(--border) 62%, transparent 62%);
+  transition: background-color 0.15s;
+}
+
+.app__resize-handle:hover,
+.app__body.is-resizing .app__resize-handle {
+  background-color: color-mix(in oklab, var(--cue) 25%, transparent);
+}
+
+.app__body.is-resizing,
+.app__body.is-resizing * {
+  cursor: col-resize !important;
+  user-select: none;
+}
+
 @media (max-width: 860px) {
   .app__body {
     flex-direction: column;
+    display: flex;
     overflow: auto;
   }
   .app__slides {
@@ -101,13 +158,13 @@
     height: min(75vw, 26rem);
     min-height: 0;
   }
-  .app__header-spacer {
+  .app__resize-handle {
     display: none;
   }
   .app__notes {
     flex-shrink: 0;
     min-height: 32rem;
-    padding-bottom: 6rem;
+    padding-bottom: 7rem;
   }
 }
 
@@ -171,6 +228,40 @@
   min-width: 0;
 }
 
+.notes__topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.notes__topline .notes__meta {
+  min-width: 0;
+}
+
+.notes__flags-toggle {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 0.3rem;
+  padding: 0.3rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--primary);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.notes__flags-toggle span {
+  display: grid;
+  min-width: 1.15rem;
+  min-height: 1.15rem;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--cue);
+  color: var(--cue-foreground);
+}
+
 .notes__slide {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -231,6 +322,144 @@
 .notes__flag-count {
   margin: 0.5rem 0 0 1rem;
   font-size: 0.75rem;
+  color: var(--muted-foreground);
+}
+
+.notes__selection {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 0.75rem;
+  padding: 0.5rem 0.65rem;
+  border: 1px dashed var(--cue);
+  border-radius: 0.75rem;
+  background: color-mix(in oklab, var(--cue) 14%, var(--card));
+  font-size: 0.75rem;
+}
+
+.notes__selection b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notes__selection button {
+  margin-left: auto;
+  font-size: 1.1rem;
+  color: var(--muted-foreground);
+}
+
+.notes__flag-history {
+  display: grid;
+  gap: 0.5rem;
+  max-height: 12rem;
+  margin-bottom: 0.75rem;
+  overflow: auto;
+}
+
+.flag-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.flag-filters button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.22rem 0.48rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted-foreground);
+  font-size: 0.68rem;
+}
+
+.flag-filters button.is-active {
+  border-color: var(--cue);
+  background: color-mix(in oklab, var(--cue) 22%, var(--card));
+  color: var(--foreground);
+}
+
+.flag-filters span {
+  display: grid;
+  min-width: 1rem;
+  min-height: 1rem;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--muted);
+  font-size: 0.62rem;
+}
+
+.notes__flags-empty {
+  margin: 0 0 0.75rem;
+  padding: 0.65rem;
+  border-radius: 0.75rem;
+  background: var(--muted);
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+}
+
+.flag-card {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.2rem 0.5rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--flag);
+  border-radius: 0.75rem;
+  background: var(--card);
+  font-size: 0.75rem;
+}
+
+.flag-card__type {
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.flag-card__source {
+  justify-self: end;
+  color: var(--muted-foreground);
+  font-size: inherit;
+  text-align: right;
+}
+
+.flag-card p,
+.flag-card small {
+  grid-column: 1 / -1;
+  margin: 0;
+  line-height: 1.35;
+}
+
+.selection-flagger {
+  position: fixed;
+  z-index: 100;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  max-width: min(34rem, calc(100vw - 1rem));
+  padding: 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 0.8rem;
+  background: var(--card);
+  box-shadow: var(--shadow-float);
+  transform: translate(-50%, calc(-100% - 0.5rem));
+}
+
+.selection-flagger button {
+  padding: 0.35rem 0.55rem;
+  border-radius: 0.55rem;
+  background: var(--muted);
+  color: var(--foreground);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.selection-flagger button:hover {
+  background: var(--cue);
+  color: var(--cue-foreground);
+}
+
+.flag-card small {
   color: var(--muted-foreground);
 }
 
@@ -321,8 +550,13 @@
 }
 
 .helper__panel {
-  width: min(20rem, calc(100vw - 2.5rem));
-  overflow: hidden;
+  width: min(22rem, calc(100vw - 2.5rem));
+  min-width: 18rem;
+  min-height: 16rem;
+  max-width: calc(100vw - 2.5rem);
+  max-height: min(36rem, calc(100vh - 7rem));
+  overflow: auto;
+  resize: both;
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 1rem;
@@ -345,6 +579,11 @@
   gap: 0.5rem;
 }
 
+.helper__head em {
+  color: var(--cue);
+  font-style: normal;
+}
+
 .helper__body {
   max-height: 20rem;
   overflow: auto;
@@ -357,6 +596,14 @@
 
 .helper__body p {
   margin: 0;
+}
+
+.helper__status {
+  padding: 0.5rem 0.65rem;
+  border-radius: 0.65rem;
+  background: var(--muted);
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
 }
 
 .helper__answer {
@@ -381,6 +628,7 @@
 }
 
 .helper__fab {
+  position: relative;
   width: 3.5rem;
   height: 3.5rem;
   display: grid;
@@ -392,6 +640,23 @@
   transition: background-color 0.15s, color 0.15s;
 }
 
+.helper__fab.is-listening {
+  animation: buddy-pulse 1.6s ease-in-out infinite;
+}
+
+.helper__fab-label {
+  position: absolute;
+  right: -0.25rem;
+  bottom: -0.4rem;
+  padding: 0.12rem 0.35rem;
+  border-radius: 999px;
+  background: var(--cue);
+  color: var(--cue-foreground);
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
 .helper__fab:hover {
   background: var(--cue);
   color: var(--cue-foreground);
@@ -400,4 +665,9 @@
 .helper__fab .icon {
   width: 1.5rem;
   height: 1.5rem;
+}
+
+@keyframes buddy-pulse {
+  0%, 100% { box-shadow: var(--shadow-float), 0 0 0 0 color-mix(in oklab, var(--cue) 45%, transparent); }
+  50% { box-shadow: var(--shadow-float), 0 0 0 0.55rem transparent; }
 }

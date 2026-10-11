@@ -3,25 +3,19 @@ import { pdfjsLib } from '../pdf/pdfSetup'
 import './SlideCanvas.css'
 
 /**
- * Draws one PDF page, scaled to fit its container in both directions (landscape
- * slides and portrait handouts alike), sharp on high-DPI screens, and redrawn when
- * the container resizes.
- *
- * @param {Object} props
- * @param {import('pdfjs-dist').PDFDocumentProxy} props.doc
- * @param {number} props.index  0-based page index
+ * Draws one PDF page sharply inside its container. The transparent layer above it
+ * lets students drag across an area they want to revisit, without modifying the PDF.
  */
-export default function SlideCanvas({ doc, index }) {
+export default function SlideCanvas({ doc, index, highlights = [], onHighlight }) {
   const boxRef = useRef(null)
   const canvasRef = useRef(null)
-  // The render currently drawing into the canvas, if any. pdf.js can't draw two
-  // renders into one canvas at once, so each new render waits for this to stop.
   const taskRef = useRef(null)
-  const [size, setSize] = useState(null) // { width, height } of the container in CSS px
+  const dragRef = useRef(null)
+  const [size, setSize] = useState(null)
+  const [pageSize, setPageSize] = useState(null)
+  const [draft, setDraft] = useState(null)
   const [dpr, setDpr] = useState(() => window.devicePixelRatio || 1)
 
-  // Moving the window to a screen with a different pixel density doesn't resize the
-  // box, so watch the density itself and redraw at the new sharpness.
   useEffect(() => {
     const query = window.matchMedia(`(resolution: ${dpr}dppx)`)
     const update = () => setDpr(window.devicePixelRatio || 1)
@@ -34,20 +28,18 @@ export default function SlideCanvas({ doc, index }) {
     const observer = new ResizeObserver(([entry]) => {
       const width = Math.floor(entry.contentRect.width)
       const height = Math.floor(entry.contentRect.height)
-      setSize((prev) => (prev?.width === width && prev?.height === height ? prev : { width, height }))
+      setSize((previous) => (previous?.width === width && previous?.height === height ? previous : { width, height }))
     })
     observer.observe(box)
     return () => observer.disconnect()
   }, [])
 
   useEffect(() => {
-    if (!doc || !size || size.width === 0 || size.height === 0) return
+    if (!doc || !size || size.width === 0 || size.height === 0) return undefined
     let cancelled = false
     let task = null
 
     async function draw() {
-      // Stop whatever is drawing (fast page flips, resizes, StrictMode's double run)
-      // and wait for it to let go of the canvas.
       const previous = taskRef.current
       if (previous) {
         previous.cancel()
@@ -60,29 +52,30 @@ export default function SlideCanvas({ doc, index }) {
 
       const natural = page.getViewport({ scale: 1 })
       const fit = Math.min(size.width / natural.width, size.height / natural.height)
-      // Draw at device pixels, display at CSS pixels: sharp instead of a blurry stretch.
       const viewport = page.getViewport({ scale: fit * dpr })
       const canvas = canvasRef.current
+      const cssWidth = Math.floor(viewport.width / dpr)
+      const cssHeight = Math.floor(viewport.height / dpr)
       canvas.width = Math.floor(viewport.width)
       canvas.height = Math.floor(viewport.height)
-      canvas.style.width = `${Math.floor(viewport.width / dpr)}px`
-      canvas.style.height = `${Math.floor(viewport.height / dpr)}px`
+      canvas.style.width = `${cssWidth}px`
+      canvas.style.height = `${cssHeight}px`
+      setPageSize({ width: cssWidth, height: cssHeight })
 
       task = page.render({ canvas, viewport })
       taskRef.current = task
       try {
         await task.promise
-      } catch (err) {
-        // Cancelled on purpose, or the doc was closed because a new PDF replaced it.
-        const expected = err instanceof pdfjsLib.RenderingCancelledException || doc.loadingTask.destroyed
-        if (!expected) console.error('[slides] failed to render page', index, err)
+      } catch (error) {
+        const expected = error instanceof pdfjsLib.RenderingCancelledException || doc.loadingTask.destroyed
+        if (!expected) console.error('[slides] failed to render page', index, error)
       } finally {
         if (taskRef.current === task) taskRef.current = null
       }
     }
 
-    draw().catch((err) => {
-      if (!cancelled && !doc.loadingTask.destroyed) console.error('[slides] failed to load page', index, err)
+    draw().catch((error) => {
+      if (!cancelled && !doc.loadingTask.destroyed) console.error('[slides] failed to load page', index, error)
     })
     return () => {
       cancelled = true
@@ -90,9 +83,77 @@ export default function SlideCanvas({ doc, index }) {
     }
   }, [doc, index, size, dpr])
 
+  const normalisePoint = (event) => {
+    const rect = event.currentTarget.getBoundingClientRect()
+    return {
+      x: Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)),
+      y: Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height)),
+    }
+  }
+
+  const rectangleFrom = (start, end) => ({
+    x: Math.min(start.x, end.x),
+    y: Math.min(start.y, end.y),
+    width: Math.abs(end.x - start.x),
+    height: Math.abs(end.y - start.y),
+  })
+
+  const startHighlight = (event) => {
+    if (event.button !== 0) return
+    const point = normalisePoint(event)
+    dragRef.current = point
+    event.currentTarget.setPointerCapture?.(event.pointerId)
+    setDraft({ x: point.x, y: point.y, width: 0, height: 0 })
+  }
+
+  const moveHighlight = (event) => {
+    if (!dragRef.current) return
+    setDraft(rectangleFrom(dragRef.current, normalisePoint(event)))
+  }
+
+  const finishHighlight = (event) => {
+    if (!dragRef.current) return
+    const rect = rectangleFrom(dragRef.current, normalisePoint(event))
+    dragRef.current = null
+    setDraft(null)
+    if (rect.width > 0.03 && rect.height > 0.03) onHighlight?.(rect)
+  }
+
   return (
     <div className="slide-canvas" ref={boxRef}>
-      <canvas className="slide-canvas__page" ref={canvasRef} role="img" aria-label={`Page ${index + 1}`} />
+      <div
+        className="slide-canvas__page-wrap"
+        style={pageSize ?? undefined}
+      >
+        <canvas className="slide-canvas__page" ref={canvasRef} role="img" aria-label={`Page ${index + 1}`} />
+        {pageSize && (
+          <div
+            className="slide-canvas__overlay"
+            onPointerDown={startHighlight}
+            onPointerMove={moveHighlight}
+            onPointerUp={finishHighlight}
+            onPointerCancel={finishHighlight}
+            aria-label="Drag across a part of the slide to highlight it"
+          >
+            {highlights.map((highlight) => (
+              <div
+                key={highlight.id}
+                className={`slide-canvas__highlight ${highlight.flagType ? 'is-flagged' : ''}`}
+                style={toStyle(highlight.rect)}
+                title={highlight.flagType ? `Flagged: ${highlight.flagType}` : 'Slide highlight'}
+              />
+            ))}
+            {draft && <div className="slide-canvas__highlight is-draft" style={toStyle(draft)} />}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
+
+const toStyle = (rect) => ({
+  left: `${rect.x * 100}%`,
+  top: `${rect.y * 100}%`,
+  width: `${rect.width * 100}%`,
+  height: `${rect.height * 100}%`,
+})

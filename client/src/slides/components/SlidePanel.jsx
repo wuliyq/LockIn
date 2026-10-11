@@ -28,7 +28,7 @@ const debugLog = (...args) => import.meta.env.DEV && console.log(...args)
  *   Called on every navigation and with 0 when a new PDF opens; index is 0-based,
  *   timestamp is Date.now().
  */
-export default function SlidePanel({ index: controlledIndex, onDeckReady, onSlideChange }) {
+export default function SlidePanel({ index: controlledIndex, onDeckReady, onSlideChange, highlights, onHighlight }) {
   const [pdf, setPdf] = useState(null) // { doc, filename } currently shown
   const [deck, setDeck] = useState(null) // DeckContext for `pdf`; null while its text is read
   const [opening, setOpening] = useState(null) // filename of an upload still opening
@@ -193,7 +193,7 @@ export default function SlidePanel({ index: controlledIndex, onDeckReady, onSlid
       {errorLine}
 
       <div className="slide-panel__stage">
-        <SlideCanvas doc={pdf.doc} index={index} />
+        <SlideCanvas doc={pdf.doc} index={index} highlights={highlights} onHighlight={onHighlight} />
       </div>
 
       <div className="slide-panel__nav">
@@ -222,6 +222,8 @@ export default function SlidePanel({ index: controlledIndex, onDeckReady, onSlid
           ›
         </button>
       </div>
+
+      <p className="slide-panel__hint">Drag across a slide area to mark it for a question.</p>
 
       {/* Scanned PDFs (or failed extraction) still display; say plainly what that means. */}
       {deck && !deck.hasTextLayer && (
