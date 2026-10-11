@@ -65,15 +65,6 @@ npm run dev
 
 Open the Vite address printed in Terminal 2 (usually `http://localhost:5173`). The frontend proxies `/api` calls to the Express server on port `3001`.
 
-## A good two-minute demo path
-
-1. Choose **Student** on the entry screen and start a lecture.
-2. Upload a short PDF deck and type one or two notes.
-3. Select a sentence, choose **Confusing**, and submit a question.
-4. Open the focus buddy to show the short AI answer or a catch-up.
-5. Finish the lecture and open its summary from **My lectures**.
-6. Switch to **Lecturer**, choose **Load sample lecture**, and show the flag breakdown and timeline.
-
 ## Tech we used
 
 - **React + Vite** for the interface
@@ -82,10 +73,6 @@ Open the Vite address printed in Terminal 2 (usually `http://localhost:5173`). T
 - **ElevenLabs Scribe** for live speech-to-text
 - **PDF.js** for rendering and reading slide decks
 - **PostgreSQL store groundwork** is included under `server/store/` and `server/db/`
-
-## A small but important demo note
-
-The current student role and lecture-history experience is intentionally local to the browser for the prototype. The live lecture dashboard also uses an in-memory server session, so restarting the server clears its live flag/transcript data. That makes the demo fast and removes the need to create an account, but it is not yet multi-user persistence.
 
 ## Useful commands
 
