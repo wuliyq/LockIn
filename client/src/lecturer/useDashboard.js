@@ -10,8 +10,9 @@ export const SAMPLE_CODE = 'SAMPLE-LECTURE'
  * The lecture code students join with. Read from the link (?lecture=…), else the
  * last one used here, else a new one. Kept in the URL so the page can be bookmarked.
  */
-export function useLectureCode() {
+export function useLectureCode(initialCode = null) {
   const [code, setCodeState] = useState(() => {
+    if (initialCode) return initialCode.toUpperCase()
     const fromUrl = new URLSearchParams(window.location.search).get('lecture')?.trim()
     if (fromUrl) return fromUrl.toUpperCase()
     try {

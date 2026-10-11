@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
+import { ensureSession } from '../account/api.js'
 import { ElevenLabsSTT } from './stt'
 import { useFocusNudge } from './useFocusNudge'
 
 /**
- * The Vite app and Express server run on different ports in development.
- * Set VITE_API_URL when deploying; otherwise use the local Express server.
+ * Same origin as the page by default: Vite proxies /api to the Express server in
+ * development, like the account pages (account/api.js). Requests carry the browser's
+ * cookie, which is how the server knows a flag belongs to this student's lecture.
+ * Set VITE_API_URL when deploying the API elsewhere.
  */
-const API_BASE_URL = (import.meta.env.VITE_API_URL ?? 'http://localhost:3001').replace(/\/$/, '')
+const API_BASE_URL = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '')
 
 /**
  * The ways to flag something, in the order the focus buddy and the highlight
@@ -75,7 +78,7 @@ const flagColorId = (flagType) => {
  * other lecture's (the lecture home page starts each lecture with its own scope).
  * Without it, the workspace keeps the shared per-PDF storage it always had.
  */
-export function useLockIn({ storageScope = null } = {}) {
+export function useLockIn({ storageScope = null, lectureId = null } = {}) {
   const stored = (name) => lectureStorageKey(storageScope, name)
   const [deck, setDeck] = useState(null)
   const [reading, setReading] = useState(false)
@@ -87,7 +90,7 @@ export function useLockIn({ storageScope = null } = {}) {
   const [ai, setAi] = useState(null)
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState('')
-  const { sessionId, studentId } = useSessionId()
+  const { sessionId, studentId } = useSessionId(lectureId)
   const [sessionActive, setSessionActive] = useStored(stored('sessionActive'), false)
   const [sessionStartedAt, setSessionStartedAt] = useStored(stored('sessionStartedAt'), null)
   const [sessionSeconds, setSessionSeconds] = useState(0)
@@ -472,8 +475,10 @@ function useTranscript({ sessionId, studentId, slideNumber }) {
 }
 
 async function apiRequest(path, { method = 'GET', body } = {}) {
+  await ensureSession()
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method,
+    credentials: 'include',
     headers: body ? { 'Content-Type': 'application/json' } : undefined,
     body: body ? JSON.stringify(body) : undefined,
   })
@@ -495,9 +500,11 @@ async function apiRequest(path, { method = 'GET', body } = {}) {
  * can count distinct students (the dashboard hides anything fewer than 3 flagged).
  * It never identifies a person and is never shown to the lecturer.
  */
-function useSessionId() {
+function useSessionId(lectureId) {
   const [ids] = useState(() => {
     const studentId = browserId()
+    // Started from the lecture page: everything goes to that lecture (and its class).
+    if (lectureId) return { sessionId: lectureId, studentId }
     const code = new URLSearchParams(window.location.search).get('lecture')?.trim()
     return { sessionId: code ? code.toUpperCase() : studentId, studentId }
   })

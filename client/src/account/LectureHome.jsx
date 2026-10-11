@@ -7,7 +7,7 @@ const date = (value) => new Date(value).toLocaleDateString([], { month: 'short',
 const time = (value) => new Date(value).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
 const flagLabel = (value) => ({ confusing: 'Confusing', question: 'Confusing', example: 'Give an example', real_world: 'Give an example', worked_example: 'Give an example', catch_up: 'Catch me up', why_it_matters: 'Why it matters', check_thinking: 'Check my thinking' })[value] || value
 
-export default function LectureHome({ user, api, onStart, onLogout }) {
+export default function LectureHome({ user, api, onStart, onOpenClass, onLogout }) {
   const [lectures, setLectures] = useState([])
   const [classes, setClasses] = useState([])
   const [search, setSearch] = useState('')
@@ -18,6 +18,9 @@ export default function LectureHome({ user, api, onStart, onLogout }) {
   const [revision, setRevision] = useState(0)
   const [classTitle, setClassTitle] = useState('')
   const [creating, setCreating] = useState(false)
+  // Prefilled when the student came from the lecturer's link (?lecture=CODE).
+  const [joinCode, setJoinCode] = useState(() => new URLSearchParams(window.location.search).get('lecture')?.trim().toUpperCase() ?? '')
+  const [starting, setStarting] = useState(false)
   const lecturer = user.role === 'lecturer'
 
   useEffect(() => {
@@ -41,15 +44,20 @@ export default function LectureHome({ user, api, onStart, onLogout }) {
     catch (failure) { setError(failure.message) }
     finally { setCreating(false) }
   }
+  const startLecture = async (event) => {
+    event.preventDefault(); setStarting(true); setError('')
+    try { await onStart(joinCode) }
+    catch (failure) { setError(failure.message); setStarting(false) }
+  }
   const visible = lectures.filter((lecture) => [lecture.title, lecture.filename, lecture.class_title, lecturer ? lecture.student_name : ''].join(' ').toLowerCase().includes(search.toLowerCase()))
   return <div className="theme-sage account-home">
     <header className="account-nav"><span className="app__logo"><LockIcon /> LockIN</span><span className="account-nav__role">{lecturer ? 'Lecturer space' : 'My lectures'}</span><span className="account-nav__user">{user.name}</span><button onClick={() => onLogout().catch((failure) => setError(failure.message))}>Sign out</button></header>
     <main className="account-home__main">
       {error && <div className="account-error" role="alert">{error} <button onClick={() => { setLoading(true); setRevision((value) => value + 1) }}>Retry</button></div>}
       {selected ? <LectureDetail lecture={selected} lecturer={lecturer} onBack={() => setSelected(null)} /> : <>
-        <div className="account-home__intro"><div><span className="account-eyebrow">{lecturer ? 'YOUR CLASSES, AT A GLANCE' : 'PICK UP WHERE YOU LEFT OFF'}</span><h1>{lecturer ? 'A clearer view of your classroom.' : `Welcome back, ${user.name.split(' ')[0]}.`}</h1><p>{lecturer ? 'Create a class, share its code, and review the questions students flag.' : 'Your lectures and discoveries, ready when you are.'}</p></div>{!lecturer && <button className="account-primary" onClick={onStart}>＋ New lecture</button>}</div>
+        <div className="account-home__intro"><div><span className="account-eyebrow">{lecturer ? 'YOUR CLASSES, AT A GLANCE' : 'PICK UP WHERE YOU LEFT OFF'}</span><h1>{lecturer ? 'A clearer view of your classroom.' : `Welcome back, ${user.name.split(' ')[0]}.`}</h1><p>{lecturer ? 'Create a class, share its code, and review the questions students flag.' : 'Your lectures and discoveries, ready when you are.'}</p></div>{!lecturer && <form className="account-start" onSubmit={startLecture}><input aria-label="Class code (optional)" placeholder="Class code (optional)" maxLength={40} value={joinCode} onChange={(event) => setJoinCode(event.target.value.toUpperCase())} /><button className="account-primary" disabled={starting}>{starting ? 'Starting…' : '＋ New lecture'}</button></form>}</div>
         <div className="account-stats"><div><strong>{lectures.length}</strong><span>{lecturer ? 'Student sessions' : 'Saved lectures'}</span></div><div><strong>{lectures.reduce((sum, item) => sum + (item.flagCount || 0), 0)}</strong><span>Questions flagged</span></div><div><strong>{lecturer ? classes.length : lectures.reduce((sum, item) => sum + (item.notePages || 0), 0)}</strong><span>{lecturer ? 'Your classes' : 'Pages of notes'}</span></div></div>
-        {lecturer && <section className="account-classes" aria-label="Your classes"><h2>Your classes</h2><form onSubmit={createClass}><input aria-label="New class name" placeholder="e.g. COMP 664 · Machine Learning" required maxLength={120} value={classTitle} onChange={(event) => setClassTitle(event.target.value)} /><button className="account-secondary" disabled={creating}>{creating ? 'Creating…' : 'Create class'}</button></form><div className="account-classes__list">{classes.map((item) => <article key={item.id}><strong>{item.title}</strong><span>Class code <code>{item.code}</code></span></article>)}</div><p>Share a class code with students before they start. Only sessions joined to your classes appear here.</p></section>}
+        {lecturer && <section className="account-classes" aria-label="Your classes"><h2>Your classes</h2><form onSubmit={createClass}><input aria-label="New class name" placeholder="e.g. COMP 664 · Machine Learning" required maxLength={120} value={classTitle} onChange={(event) => setClassTitle(event.target.value)} /><button className="account-secondary" disabled={creating}>{creating ? 'Creating…' : 'Create class'}</button></form><div className="account-classes__list">{classes.map((item) => <article key={item.id}><strong>{item.title}</strong><span>Class code <code>{item.code}</code></span>{onOpenClass && <button className="account-secondary" onClick={() => onOpenClass(item.code)}>Open dashboard →</button>}</article>)}</div><p>Share a class code with students before they start. Only sessions joined to your classes appear here.</p></section>}
         <section aria-label={lecturer ? 'Student lecture sessions' : 'Previous lectures'}><div className="account-history__title"><h2>{lecturer ? 'Student sessions' : 'Previous lectures'}</h2><input type="search" aria-label="Search lectures" placeholder="Search lectures…" value={search} onChange={(event) => setSearch(event.target.value)} /></div>
           {loading ? <p role="status">Loading your lectures…</p> : visible.length === 0 ? <div className="account-empty"><span aria-hidden="true"><FileIcon /></span><h3>{search ? 'No matching lectures.' : 'Your next discovery starts here.'}</h3><p>{search ? 'Try another title or class name.' : lecturer ? 'Share your class code to start collecting student questions.' : 'Start your first lecture. Your notes and flags will be saved here.'}</p></div> : <div className="account-lecture-grid">{visible.map((lecture) => <article key={lecture.id} className="account-lecture-card"><div className="account-lecture-card__top"><span aria-hidden="true"><FileIcon /></span><span>{lecture.ended_at ? 'Completed' : 'In progress'}</span></div><small>{lecture.class_title || 'Independent lecture'}</small><h3>{lecture.title}</h3><p>{date(lecture.started_at)} · {Math.floor((lecture.seconds || 0) / 60)} min{lecturer && ` · ${lecture.student_name || 'Student'}`}</p><div className="account-lecture-card__bottom"><span>{!lecturer && `${lecture.notePages || 0} note pages · `}{lecture.flagCount || 0} flags</span><button disabled={Boolean(opening)} onClick={() => openLecture(lecture.id)}>{opening === lecture.id ? 'Opening…' : lecturer ? 'View flags →' : 'Review →'}</button></div></article>)}</div>}
         </section>

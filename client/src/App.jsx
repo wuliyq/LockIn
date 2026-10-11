@@ -29,11 +29,12 @@ const FLAG_ICONS = {
 
 /**
  * Student workspace. Opened from the lecture home page it gets a per-lecture
- * `storageScope` and an `onFinish(snapshot)` that saves the lecture and goes home;
+ * `storageScope`, the server's `lectureId` (its flags and transcript are sent to that
+ * lecture) and an `onFinish(snapshot)` that saves the lecture and goes home;
  * opened on its own it behaves as before, with no Finish button.
  */
-export default function App({ storageScope = null, onFinish = null }) {
-  const li = useLockIn({ storageScope })
+export default function App({ storageScope = null, lectureId = null, onFinish = null }) {
+  const li = useLockIn({ storageScope, lectureId })
   const [pendingSelection, setPendingSelection] = useState(null)
   const [finishing, setFinishing] = useState(false)
   const [finishError, setFinishError] = useState('')

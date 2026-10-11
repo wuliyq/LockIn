@@ -304,6 +304,16 @@ app.post("/api/demo/seed", async (req, res) => {
 // an id the client sends. There's no sign-in yet, so each browser gets an anonymous
 // id in an HttpOnly cookie the first time it uses these routes.
 
+/**
+ * Gives this browser its anonymous id cookie (or keeps the one it has). The client
+ * calls this once before anything else: its first requests run in parallel, and each
+ * cookie-less one would otherwise get a different id.
+ */
+app.post("/api/session", (req, res) => {
+    accountIdFor(req, res);
+    res.json({ ok: true });
+});
+
 /** The signed-in browser's lectures, newest first. */
 app.get("/api/lectures", async (req, res) => {
     try {

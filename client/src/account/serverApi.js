@@ -10,7 +10,8 @@ const lecturePath = (id) => `/api/lectures/${encodeURIComponent(id)}`
 export const serverApi = {
   listLectures: () => request('/api/lectures'),
   getLecture: (id) => request(lecturePath(id)),
-  createLecture: ({ title, classCode } = {}) => request('/api/lectures', { method: 'POST', body: { title, classCode } }),
+  createLecture: ({ title, classCode, studentName } = {}) =>
+    request('/api/lectures', { method: 'POST', body: { title, classCode, studentName } }),
   saveLecture: (id, snapshot) => request(lecturePath(id), { method: 'PATCH', body: { snapshot } }),
   finishLecture: (id, snapshot) => request(`${lecturePath(id)}/finish`, { method: 'POST', body: { snapshot } }),
   listClasses: () => request('/api/classes'),
@@ -18,4 +19,11 @@ export const serverApi = {
   // There's no sign-in yet, so no server session to end.
   logout: async () => ({ ok: true }),
   request,
+}
+
+/** Lecturers see their classes' student lectures: flags and catch-up times, never notes. */
+export const serverLecturerApi = {
+  ...serverApi,
+  listLectures: () => request('/api/teaching/lectures'),
+  getLecture: (id) => request(`/api/teaching/lectures/${encodeURIComponent(id)}`),
 }
