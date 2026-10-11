@@ -44,7 +44,6 @@ Open `.env` and add your key:
 
 ```env
 GEMINI_API_KEY=your_key_here
-# Optional: needed for live speech-to-text
 ELEVENLABS_API_KEY=your_key_here
 ```
 
