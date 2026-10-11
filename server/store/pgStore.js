@@ -1,6 +1,8 @@
 import { query } from "../db.js";
 import {
+    BUCKET_MINUTES,
     MESSAGES,
+    MIN_STUDENTS,
     StoreError,
     asJson,
     dateOf,
@@ -8,6 +10,7 @@ import {
     optionalText,
     requireFlagType,
     requireId,
+    requireLectureDate,
     requireText,
     slideIndexOf,
     sourceOf,
@@ -16,6 +19,9 @@ import {
 /**
  * Postgres store. Same functions, return shapes and errors as memoryStore.js;
  * store.test.js runs one suite against both.
+ *
+ * `startedAt` (startLecture) and `receivedAt` (addFlag) exist for the seed and tests
+ * only. Routes must never pass client times: the server clock is the only clock.
  */
 
 // Constraint violations that can still reach Postgres after validation.
@@ -109,7 +115,7 @@ export async function findClassByCode(code) {
 }
 
 /** A blank class code means independent study; an unknown one is an error. */
-export async function startLecture({ studentId, classCode, title, filename, deckHash } = {}) {
+export async function startLecture({ studentId, classCode, title, filename, deckHash, startedAt } = {}) {
     const student = requireId(studentId, "studentId");
     let classId = null;
     if (normalizeCode(classCode)) {
@@ -120,9 +126,12 @@ export async function startLecture({ studentId, classCode, title, filename, deck
 
     await ensureUser(student);
     const { rows } = await run(
-        `INSERT INTO lectures (student_id, class_id, title, filename, deck_hash)
-         VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-        [student, classId, optionalText(title), optionalText(filename), optionalText(deckHash)],
+        `INSERT INTO lectures (student_id, class_id, title, filename, deck_hash, started_at)
+         VALUES ($1, $2, $3, $4, $5, COALESCE($6::timestamptz, NOW())) RETURNING *`,
+        [
+            student, classId, optionalText(title), optionalText(filename), optionalText(deckHash),
+            dateOf(startedAt, "startedAt", null),
+        ],
     );
     return toLecture(rows[0]);
 }
@@ -182,8 +191,9 @@ export async function listLectures(studentId) {
 export async function addFlag(sessionId, flag = {}) {
     const id = requireId(sessionId, "sessionId");
     const { rows } = await run(
-        `INSERT INTO flags (session_id, type, slide_index, source, selected_text, student_text, ai_answer)
-         VALUES ($1, $2, COALESCE($3, -1), $4, $5, $6, $7) RETURNING *`,
+        `INSERT INTO flags
+           (session_id, type, slide_index, source, selected_text, student_text, ai_answer, received_at)
+         VALUES ($1, $2, COALESCE($3, -1), $4, $5, $6, $7, COALESCE($8::timestamptz, NOW())) RETURNING *`,
         [
             id,
             requireFlagType(flag.type),
@@ -192,6 +202,7 @@ export async function addFlag(sessionId, flag = {}) {
             optionalText(flag.selectedText),
             optionalText(flag.studentText),
             optionalText(flag.aiAnswer),
+            dateOf(flag.receivedAt, "receivedAt", null),
         ],
     );
     return toFlag(rows[0]);
@@ -226,4 +237,167 @@ export async function getRecentTranscript(sessionId, slideIndex, maxSegments = 4
         [id, slideIndexOf(slideIndex), maxSegments],
     );
     return rows.map((row) => row.text).join(" ");
+}
+
+// ── Lecturer views ───────────────────────────────────────────────────────────
+// Everything below is aggregated across the room and gated at MIN_STUDENTS distinct
+// students in SQL. None of it returns a student id, lecture id, note, snapshot or
+// AI answer.
+
+/**
+ * The room: every lecture in a class on one date. Per-slide views only count lectures
+ * on the room's most common deck, so "slide 5" is the same page for everyone. With no
+ * deck hashes at all, every lecture counts. Uses $1 = class id, $2 = lecture date.
+ */
+const ROOM = `
+  room AS (
+    SELECT id, student_id, deck_hash FROM lectures WHERE class_id = $1 AND lecture_date = $2
+  ),
+  deck AS (
+    SELECT deck_hash FROM room WHERE deck_hash IS NOT NULL
+    GROUP BY deck_hash
+    ORDER BY count(DISTINCT student_id) DESC, deck_hash COLLATE "C"
+    LIMIT 1
+  ),
+  on_deck AS (
+    SELECT * FROM room
+    WHERE NOT EXISTS (SELECT 1 FROM deck) OR deck_hash = (SELECT deck_hash FROM deck)
+  )`;
+
+/** The lecturer's date picker: which dates have lectures for this class. */
+export async function listLectureDates(classId) {
+    const id = requireId(classId, "classId");
+    const { rows } = await run(
+        `SELECT l.lecture_date,
+                count(DISTINCT l.student_id)::int AS students,
+                count(f.id)::int AS flags
+         FROM lectures l
+         LEFT JOIN flags f ON f.session_id = l.id
+         WHERE l.class_id = $1
+         GROUP BY l.lecture_date
+         ORDER BY l.lecture_date DESC`,
+        [id],
+    );
+    return rows.map((row) => ({ lectureDate: row.lecture_date, students: row.students, flags: row.flags }));
+}
+
+/** Primary view: flags per slide and type. */
+export async function slideHeat(classId, lectureDate) {
+    const { rows } = await run(
+        `WITH ${ROOM}
+         SELECT f.slide_index, f.type,
+                count(*)::int AS flags,
+                count(DISTINCT r.student_id)::int AS students
+         FROM flags f
+         JOIN on_deck r ON r.id = f.session_id
+         WHERE f.slide_index >= 0
+         GROUP BY f.slide_index, f.type
+         HAVING count(DISTINCT r.student_id) >= $3
+         ORDER BY f.slide_index, f.type COLLATE "C"`,
+        [requireId(classId, "classId"), requireLectureDate(lectureDate), MIN_STUDENTS],
+    );
+    return rows.map((row) => ({ slideIndex: row.slide_index, type: row.type, flags: row.flags, students: row.students }));
+}
+
+/**
+ * Flags per highlighted slide line. Only text selected on the slide: it's the
+ * lecturer's own words. Text selected in a student's notes is their writing.
+ */
+export async function highlightedLines(classId, lectureDate) {
+    const { rows } = await run(
+        `WITH ${ROOM}
+         SELECT f.slide_index, f.selected_text, f.type,
+                count(*)::int AS flags,
+                count(DISTINCT r.student_id)::int AS students
+         FROM flags f
+         JOIN on_deck r ON r.id = f.session_id
+         WHERE f.source = 'slide' AND f.selected_text IS NOT NULL AND f.slide_index >= 0
+         GROUP BY f.slide_index, f.selected_text, f.type
+         HAVING count(DISTINCT r.student_id) >= $3
+         ORDER BY f.slide_index, f.type COLLATE "C", f.selected_text COLLATE "C"`,
+        [requireId(classId, "classId"), requireLectureDate(lectureDate), MIN_STUDENTS],
+    );
+    return rows.map((row) => ({
+        slideIndex: row.slide_index,
+        selectedText: row.selected_text,
+        type: row.type,
+        flags: row.flags,
+        students: row.students,
+    }));
+}
+
+/**
+ * Flags over time in BUCKET_MINUTES buckets, aligned to the room's first flag rather
+ * than the clock, so a burst across :00 isn't split into two groups that each fail
+ * the gate. Shows when students flagged, which is after they got lost.
+ */
+export async function timeline(classId, lectureDate) {
+    const { rows } = await run(
+        `WITH ${ROOM},
+         origin AS (SELECT min(f.received_at) AS at FROM flags f JOIN room r ON r.id = f.session_id)
+         SELECT date_bin(make_interval(mins => $3), f.received_at, (SELECT at FROM origin)) AS bucket,
+                f.type,
+                count(*)::int AS flags,
+                count(DISTINCT r.student_id)::int AS students
+         FROM flags f
+         JOIN room r ON r.id = f.session_id
+         GROUP BY bucket, f.type
+         HAVING count(DISTINCT r.student_id) >= $4
+         ORDER BY bucket, f.type COLLATE "C"`,
+        [requireId(classId, "classId"), requireLectureDate(lectureDate), BUCKET_MINUTES, MIN_STUDENTS],
+    );
+    return rows.map((row) => ({
+        bucketStart: iso(row.bucket),
+        bucketEnd: iso(new Date(row.bucket.getTime() + BUCKET_MINUTES * 60_000)),
+        type: row.type,
+        flags: row.flags,
+        students: row.students,
+    }));
+}
+
+/**
+ * Drill-down transcript for a time window. Several students may each have recorded
+ * the lecture; read only the copy with the most coverage so text isn't repeated.
+ */
+export async function transcriptWindow(classId, lectureDate, from, to) {
+    const { rows } = await run(
+        `WITH ${ROOM},
+         best AS (
+           SELECT t.session_id FROM transcript_segments t
+           JOIN room r ON r.id = t.session_id
+           GROUP BY t.session_id
+           ORDER BY sum(t.ended_at - t.started_at) DESC, count(*) DESC, t.session_id
+           LIMIT 1
+         )
+         SELECT started_at, ended_at, text FROM transcript_segments
+         WHERE session_id = (SELECT session_id FROM best) AND ended_at >= $3 AND started_at <= $4
+         ORDER BY started_at, id`,
+        [
+            requireId(classId, "classId"), requireLectureDate(lectureDate),
+            dateOf(from, "from"), dateOf(to, "to"),
+        ],
+    );
+    return rows.map((row) => ({ startedAt: iso(row.started_at), endedAt: iso(row.ended_at), text: row.text }));
+}
+
+/**
+ * RAW student questions on one slide, oldest first, for the server to paraphrase.
+ * Never send these to a lecturer as they are. Empty unless MIN_STUDENTS different
+ * students asked on that slide.
+ */
+export async function studentQuestions(classId, lectureDate, slideIndex) {
+    const { rows } = await run(
+        `WITH ${ROOM},
+         asked AS (
+           SELECT f.id, f.student_text, f.received_at, r.student_id
+           FROM flags f
+           JOIN on_deck r ON r.id = f.session_id
+           WHERE f.slide_index = $3 AND f.student_text IS NOT NULL
+         )
+         SELECT student_text FROM asked
+         WHERE (SELECT count(DISTINCT student_id) FROM asked) >= $4
+         ORDER BY received_at, id`,
+        [requireId(classId, "classId"), requireLectureDate(lectureDate), slideIndexOf(slideIndex), MIN_STUDENTS],
+    );
+    return rows.map((row) => row.student_text);
 }

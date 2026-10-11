@@ -22,6 +22,12 @@ export const {
     addFlag,
     addTranscriptSegment,
     getRecentTranscript,
+    listLectureDates,
+    slideHeat,
+    highlightedLines,
+    timeline,
+    transcriptWindow,
+    studentQuestions,
 } = impl;
 
-export { FLAG_TYPES, SOURCES, StoreError } from "./shared.js";
+export { BUCKET_MINUTES, FLAG_TYPES, MIN_STUDENTS, SOURCES, StoreError } from "./shared.js";

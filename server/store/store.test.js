@@ -188,6 +188,146 @@ function contract(name, load) {
             await rejectsWith(store.addTranscriptSegment(lecture.id, { text: "x", startedAt: base + 1, endedAt: base }), "invalid");
             await rejectsWith(store.addTranscriptSegment(id(), { text: "x" }), "not_found");
         });
+
+        describe("lecturer views", () => {
+            // One class on 2026-10-08, lecture starting 14:50 New York (18:50Z).
+            // s0-s3 use deck D1; s4 uploaded a different PDF (D2). Another class
+            // meets the same day and must never leak in.
+            const START = Date.parse("2026-10-08T18:50:00Z");
+            const at = (minutes) => new Date(START + minutes * 60_000).toISOString();
+            let room;
+
+            before(async () => {
+                if (!store) return;
+                const code = `room${Math.floor(Math.random() * 1e9)}`;
+                const cls = await store.createClass({ lecturerId: id(), title: "Room", code });
+                const students = Array.from({ length: 5 }, () => id());
+                const lectures = [];
+                for (const [i, studentId] of students.entries()) {
+                    lectures.push(await store.startLecture({
+                        studentId, classCode: code, deckHash: i < 4 ? "D1" : "D2", startedAt: at(0),
+                    }));
+                }
+                const [l0, l1, l2, l3, l4] = lectures;
+                // Same student, an earlier class date with no flags.
+                await store.startLecture({ studentId: students[0], classCode: code, deckHash: "D1", startedAt: "2026-10-01T18:50:00Z" });
+
+                const otherCode = `other${Math.floor(Math.random() * 1e9)}`;
+                await store.createClass({ lecturerId: id(), title: "Other", code: otherCode });
+                const outsider = await store.startLecture({ studentId: id(), classCode: otherCode, deckHash: "D1", startedAt: at(0) });
+
+                const flag = (lecture, minutes, fields) =>
+                    store.addFlag(lecture.id, { receivedAt: at(minutes), ...fields });
+
+                // Slide 2 confusing: three D1 students across 14:58-15:01, plus the D2 student.
+                await flag(l0, 8, { type: "confusing", slideIndex: 2, studentText: "why do protons move?" });
+                await flag(l1, 9, { type: "confusing", slideIndex: 2, studentText: "gradient of what?" });
+                await flag(l4, 10, { type: "confusing", slideIndex: 2 });
+                await flag(l2, 11, { type: "confusing", slideIndex: 2 });
+                // One student clicking four times is one student.
+                for (const m of [20, 20.1, 20.2, 20.3]) await flag(l3, m, { type: "confusing", slideIndex: 5 });
+                // Slide 4 worked example on one line: three highlighted it on the slide,
+                // one in their own notes.
+                const line = "Proton gradient drives ATP synthase";
+                await flag(l0, 30, { type: "worked_example", slideIndex: 4, source: "slide", selectedText: line, studentText: "a", aiAnswer: "SECRET-ANSWER" });
+                await flag(l1, 31, { type: "worked_example", slideIndex: 4, source: "slide", selectedText: line, studentText: "b" });
+                await flag(l2, 32, { type: "worked_example", slideIndex: 4, source: "notes", selectedText: line });
+                await flag(l3, 33, { type: "worked_example", slideIndex: 4, source: "slide", selectedText: line, studentText: "c" });
+                // Catch-ups aren't tied to a slide.
+                for (const [l, m] of [[l0, 40], [l1, 41], [l2, 42]]) await flag(l, m, { type: "catch_up" });
+                // Three students highlighting the same words in their own notes.
+                for (const [l, m] of [[l0, 50], [l1, 50.5], [l2, 51]]) {
+                    await flag(l, m, { type: "confusing", slideIndex: 3, source: "notes", selectedText: "my own words" });
+                }
+                await flag(outsider, 9, { type: "confusing", slideIndex: 2, studentText: "outsider" });
+
+                // l0 recorded the most; l1 recorded an overlapping copy.
+                const seg = (lecture, from, to, text) =>
+                    store.addTranscriptSegment(lecture.id, { startedAt: at(from), endedAt: at(to), text });
+                await seg(l0, 0, 5, "intro");
+                await seg(l0, 5, 10, "gradient part");
+                await seg(l1, 8, 10, "duplicate copy");
+
+                room = { cls, lectures, students, line };
+            });
+
+            test("per-slide heat counts distinct students on the room's deck", async (t) => {
+                if (!store) return t.skip("store unavailable");
+                assert.deepEqual(await store.slideHeat(room.cls.id, "2026-10-08"), [
+                    { slideIndex: 2, type: "confusing", flags: 3, students: 3 }, // D2 student excluded
+                    { slideIndex: 3, type: "confusing", flags: 3, students: 3 },
+                    { slideIndex: 4, type: "worked_example", flags: 4, students: 4 },
+                    // slide 5: four flags, one student, hidden
+                ]);
+            });
+
+            test("highlighted lines only count text selected on the slide", async (t) => {
+                if (!store) return t.skip("store unavailable");
+                assert.deepEqual(await store.highlightedLines(room.cls.id, "2026-10-08"), [
+                    { slideIndex: 4, selectedText: room.line, type: "worked_example", flags: 3, students: 3 },
+                ]);
+            });
+
+            test("timeline buckets start at the first flag, so a burst across :00 stays together", async (t) => {
+                if (!store) return t.skip("store unavailable");
+                assert.deepEqual(await store.timeline(room.cls.id, "2026-10-08"), [
+                    // 14:58-15:03: s0, s1, D2 student, s2 (the whole room, not just the deck)
+                    { bucketStart: at(8), bucketEnd: at(13), type: "confusing", flags: 4, students: 4 },
+                    { bucketStart: at(28), bucketEnd: at(33), type: "worked_example", flags: 3, students: 3 },
+                    { bucketStart: at(38), bucketEnd: at(43), type: "catch_up", flags: 3, students: 3 },
+                    { bucketStart: at(48), bucketEnd: at(53), type: "confusing", flags: 3, students: 3 },
+                ]);
+            });
+
+            test("date picker lists every date with ungated totals", async (t) => {
+                if (!store) return t.skip("store unavailable");
+                assert.deepEqual(await store.listLectureDates(room.cls.id), [
+                    { lectureDate: "2026-10-08", students: 5, flags: 18 },
+                    { lectureDate: "2026-10-01", students: 1, flags: 0 },
+                ]);
+            });
+
+            test("drill-down reads only the transcript copy with the most coverage", async (t) => {
+                if (!store) return t.skip("store unavailable");
+                assert.deepEqual(await store.transcriptWindow(room.cls.id, "2026-10-08", at(7), at(9)), [
+                    { startedAt: at(5), endedAt: at(10), text: "gradient part" },
+                ]);
+                assert.deepEqual(await store.transcriptWindow(room.cls.id, "2026-10-01", at(0), at(60)), []);
+            });
+
+            test("raw questions only come back once three students asked on that slide", async (t) => {
+                if (!store) return t.skip("store unavailable");
+                assert.deepEqual(await store.studentQuestions(room.cls.id, "2026-10-08", 4), ["a", "b", "c"]);
+                assert.deepEqual(await store.studentQuestions(room.cls.id, "2026-10-08", 2), []);
+            });
+
+            test("no lecturer view leaks ids, answers or notes text", async (t) => {
+                if (!store) return t.skip("store unavailable");
+                const date = "2026-10-08";
+                const everything = JSON.stringify([
+                    await store.slideHeat(room.cls.id, date),
+                    await store.highlightedLines(room.cls.id, date),
+                    await store.timeline(room.cls.id, date),
+                    await store.listLectureDates(room.cls.id),
+                    await store.transcriptWindow(room.cls.id, date, at(0), at(60)),
+                ]);
+                for (const secret of [...room.students, ...room.lectures.map((l) => l.id), "SECRET-ANSWER", "my own words", "outsider"]) {
+                    assert.ok(!everything.includes(secret), `leaked ${secret}`);
+                }
+            });
+
+            test("empty rooms and bad input", async (t) => {
+                if (!store) return t.skip("store unavailable");
+                const empty = id();
+                for (const view of [store.slideHeat, store.highlightedLines, store.timeline]) {
+                    assert.deepEqual(await view(empty, "2026-10-08"), []);
+                }
+                assert.deepEqual(await store.listLectureDates(empty), []);
+                assert.deepEqual(await store.studentQuestions(empty, "2026-10-08", 0), []);
+                await rejectsWith(store.slideHeat(room.cls.id, "10/08/2026"), "invalid");
+                await rejectsWith(store.timeline("nope", "2026-10-08"), "invalid");
+            });
+        });
     });
 }
 

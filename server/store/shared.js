@@ -6,6 +6,14 @@
 export const FLAG_TYPES = ["catch_up", "confusing", "real_world", "worked_example"];
 export const SOURCES = ["slide", "notes"];
 
+// Lecturer views only show a group once this many different students are in it. One
+// flag in a small class identifies its author; one student clicking five times is
+// still one student.
+export const MIN_STUDENTS = 3;
+// Timeline bucket width. Flags are sparse, so three students rarely flag within the
+// same 30 seconds; five minutes is a realistic cluster window.
+export const BUCKET_MINUTES = 5;
+
 // Must match the timezone hardcoded in lectures.lecture_date (server/db/schema.sql).
 export const COURSE_TZ = process.env.COURSE_TZ || "America/New_York";
 
@@ -74,6 +82,16 @@ export function dateOf(value, name, fallback = new Date()) {
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) throw invalid(`${name} is not a valid time.`);
     return date;
+}
+
+/** A lecture date as "YYYY-MM-DD". */
+export function requireLectureDate(value) {
+    const parsed = new Date(`${value}T00:00:00Z`);
+    // Rolled-over dates like 2026-02-30 parse fine, so check the round trip too.
+    const valid = typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) &&
+        !Number.isNaN(parsed.getTime()) && parsed.toISOString().startsWith(value);
+    if (!valid) throw invalid("lectureDate must be a date like 2026-10-10.");
+    return value;
 }
 
 /** "YYYY-MM-DD" of a moment in the course timezone, as lectures.lecture_date computes it. */
