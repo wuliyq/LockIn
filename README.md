@@ -1,6 +1,6 @@
 # LockIN 🔒
 
-> A little study buddy for the moments when a lecture loses you.
+> A study helper for both students and lecturers
 
 LockIN helps students stay in the lecture instead of quietly falling behind. Upload slides, take notes beside them, flag the confusing bit, and get a short AI explanation without leaving the page. Afterward, the lecture is saved as a reviewable summary. Lecturers get a dashboard that turns those anonymous flags into useful feedback.
 
