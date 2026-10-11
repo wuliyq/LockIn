@@ -25,7 +25,7 @@ import {
  * only. Routes must never pass client times: the server clock is the only clock.
  */
 
-const users = new Set();
+const users = new Map(); // id -> { name }
 const classes = new Map(); // id -> class
 const lectures = new Map(); // id -> lecture (snapshot stored as JSON, like JSONB)
 const flags = []; // ids are strings, like Postgres BIGSERIAL through pg
@@ -39,9 +39,9 @@ const copy = (lecture) => ({ ...lecture, snapshot: asJson(lecture.snapshot) });
 const byStartDesc = (a, b) => b.startedAt.localeCompare(a.startedAt) || b.id.localeCompare(a.id);
 const byStartAsc = (a, b) => a.startedAt.localeCompare(b.startedAt) || a.order - b.order;
 
-export async function ensureUser(userId) {
+export async function ensureUser(userId, { name } = {}) {
     const id = requireId(userId, "userId");
-    users.add(id);
+    users.set(id, { name: optionalText(name) ?? users.get(id)?.name ?? null });
     return { id };
 }
 
@@ -67,7 +67,7 @@ export async function findClassByCode(code) {
     return found ? { ...found } : null;
 }
 
-export async function startLecture({ studentId, classCode, title, filename, deckHash, startedAt: at } = {}) {
+export async function startLecture({ studentId, studentName, classCode, title, filename, deckHash, startedAt: at } = {}) {
     const student = requireId(studentId, "studentId");
     let classId = null;
     if (normalizeCode(classCode)) {
@@ -77,7 +77,7 @@ export async function startLecture({ studentId, classCode, title, filename, deck
     }
 
     const startedAt = dateOf(at, "startedAt");
-    await ensureUser(student);
+    await ensureUser(student, { name: studentName });
     const lecture = {
         id: crypto.randomUUID(),
         studentId: student,
@@ -427,4 +427,30 @@ export async function listClasses(lecturerId) {
         .filter((c) => c.lecturerId === lecturer)
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || byCode(b.id, a.id))
         .map((c) => ({ ...c }));
+}
+
+export async function listClassLectures(lecturerId) {
+    const lecturer = requireId(lecturerId, "lecturerId");
+    return [...lectures.values()]
+        .filter((l) => l.classId && classes.get(l.classId)?.lecturerId === lecturer)
+        .sort(byStartDesc)
+        .map((l) => ({
+            id: l.id,
+            title: l.title,
+            filename: l.filename,
+            startedAt: l.startedAt,
+            endedAt: l.endedAt,
+            lectureDate: l.lectureDate,
+            classTitle: classes.get(l.classId).title,
+            studentName: users.get(l.studentId)?.name ?? null,
+            flagCount: flags.filter((f) => f.sessionId === l.id).length,
+        }));
+}
+
+export async function lectureFlags(lectureId) {
+    const id = requireId(lectureId, "lectureId");
+    return flags
+        .filter((f) => f.sessionId === id)
+        .sort((a, b) => a.receivedAt.localeCompare(b.receivedAt) || byFlagId(a, b))
+        .map((f) => ({ ...f }));
 }

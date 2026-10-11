@@ -33,6 +33,8 @@ export const {
     dashboardQuestions,
     resetClass,
     listClasses,
+    listClassLectures,
+    lectureFlags,
     ready,
 } = impl;
 

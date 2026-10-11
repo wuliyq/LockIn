@@ -87,10 +87,14 @@ const toSegment = (row) => ({
     text: row.text,
 });
 
-/** Anonymous users: the client makes the id and keeps it in localStorage. */
-export async function ensureUser(userId) {
+/** Anonymous users, by an id the server or client made. A name, when given, is kept. */
+export async function ensureUser(userId, { name } = {}) {
     const id = requireId(userId, "userId");
-    await run("INSERT INTO users (id) VALUES ($1) ON CONFLICT (id) DO NOTHING", [id]);
+    await run(
+        `INSERT INTO users (id, name) VALUES ($1, $2)
+         ON CONFLICT (id) DO UPDATE SET name = COALESCE(EXCLUDED.name, users.name)`,
+        [id, optionalText(name)],
+    );
     return { id };
 }
 
@@ -116,7 +120,7 @@ export async function findClassByCode(code) {
 }
 
 /** A blank class code means independent study; an unknown one is an error. */
-export async function startLecture({ studentId, classCode, title, filename, deckHash, startedAt } = {}) {
+export async function startLecture({ studentId, studentName, classCode, title, filename, deckHash, startedAt } = {}) {
     const student = requireId(studentId, "studentId");
     let classId = null;
     if (normalizeCode(classCode)) {
@@ -125,7 +129,7 @@ export async function startLecture({ studentId, classCode, title, filename, deck
         classId = found.id;
     }
 
-    await ensureUser(student);
+    await ensureUser(student, { name: studentName });
     const { rows } = await run(
         `INSERT INTO lectures (student_id, class_id, title, filename, deck_hash, started_at)
          VALUES ($1, $2, $3, $4, $5, COALESCE($6::timestamptz, NOW())) RETURNING *`,
@@ -532,4 +536,38 @@ export async function listClasses(lecturerId) {
         [lecturer],
     );
     return rows.map(toClass);
+}
+
+/** Student lectures in a lecturer's classes, newest first. For the lecturer's home page. */
+export async function listClassLectures(lecturerId) {
+    const lecturer = requireId(lecturerId, "lecturerId");
+    const { rows } = await run(
+        `SELECT l.id, l.title, l.filename, l.started_at, l.ended_at, l.lecture_date,
+                c.title AS class_title, u.name AS student_name,
+                (SELECT count(*) FROM flags f WHERE f.session_id = l.id)::int AS flag_count
+         FROM lectures l
+         JOIN classes c ON c.id = l.class_id
+         JOIN users u ON u.id = l.student_id
+         WHERE c.lecturer_id = $1
+         ORDER BY l.started_at DESC, l.id DESC`,
+        [lecturer],
+    );
+    return rows.map((row) => ({
+        id: row.id,
+        title: row.title,
+        filename: row.filename,
+        startedAt: iso(row.started_at),
+        endedAt: iso(row.ended_at),
+        lectureDate: row.lecture_date,
+        classTitle: row.class_title,
+        studentName: row.student_name,
+        flagCount: row.flag_count,
+    }));
+}
+
+/** One lecture's flags, oldest first. */
+export async function lectureFlags(lectureId) {
+    const id = requireId(lectureId, "lectureId");
+    const { rows } = await run("SELECT * FROM flags WHERE session_id = $1 ORDER BY received_at, id", [id]);
+    return rows.map(toFlag);
 }

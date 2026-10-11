@@ -131,6 +131,34 @@ function contract(name, load) {
             assert.deepEqual(await store.listClasses(id()), []);
         });
 
+        test("a lecturer sees their classes' student lectures, with names and flags", async (t) => {
+            if (!store) return t.skip("store unavailable");
+            const lecturerId = id();
+            const code = `teach${Math.floor(Math.random() * 1e9)}`;
+            await store.createClass({ lecturerId, title: "COMP 664", code });
+            const alexId = id();
+            const alex = await store.startLecture({ studentId: alexId, studentName: " Alex Lee ", classCode: code, title: "Week 1" });
+            await sleep(5);
+            const sam = await store.startLecture({ studentId: id(), classCode: code, title: "Week 1" });
+            await store.startLecture({ studentId: alexId, title: "Independent" }); // no class: not the lecturer's
+            const flag = await store.addFlag(alex.id, {
+                type: "confusing", slideIndex: 4, source: "slide", selectedText: "Learning rate", studentText: "how big?", aiAnswer: "Small.",
+            });
+            await store.addFlag(alex.id, { type: "catch_up" });
+            await store.ensureUser(alexId); // no name given: keeps the one it has
+
+            assert.deepEqual((await store.listClassLectures(lecturerId)).map((l) => [l.id, l.studentName, l.classTitle, l.flagCount]), [
+                [sam.id, null, "COMP 664", 0],
+                [alex.id, "Alex Lee", "COMP 664", 2],
+            ]);
+            assert.deepEqual(await store.listClassLectures(id()), []);
+
+            const flags = await store.lectureFlags(alex.id);
+            assert.deepEqual(flags.map((f) => f.type), ["confusing", "catch_up"]);
+            assert.deepEqual(flags[0], flag);
+            assert.deepEqual(await store.lectureFlags(id()), []);
+        });
+
         test("lecture history is newest first, with class title and flag count", async (t) => {
             if (!store) return t.skip("store unavailable");
             const studentId = id();
@@ -242,7 +270,7 @@ function contract(name, load) {
                 await rejectsWith(store.ensureLecture({ studentId: "nope", classCode: code }), "invalid");
             });
 
-            test("the dashboard only gets type, slide and time, for groups of 3+ students", async (t) => {
+            test("the dashboard gets every flag's type, slide and time, without text", async (t) => {
                 if (!store) return t.skip("store unavailable");
                 const code = newCode();
                 const base = Date.parse("2026-10-10T18:00:00Z");
@@ -261,14 +289,22 @@ function contract(name, load) {
                 await flag(outsider, 1, { type: "check_thinking", slideIndex: 2 });
 
                 const at = (minute) => new Date(base + minute * 60_000).toISOString();
+                // The 3-student rule is off (MIN_STUDENTS=1): one student's flags show too.
+                // Slide-less catch-ups and other codes still don't.
                 assert.deepEqual(await store.dashboardFlags(code.toLowerCase()), [
                     { type: "check_thinking", slideIndex: 2, receivedAt: at(1), hasQuestion: true },
                     { type: "check_thinking", slideIndex: 2, receivedAt: at(2), hasQuestion: false },
                     { type: "check_thinking", slideIndex: 2, receivedAt: at(3), hasQuestion: true },
+                    { type: "confusing", slideIndex: 5, receivedAt: at(4), hasQuestion: true },
+                    { type: "confusing", slideIndex: 5, receivedAt: at(5), hasQuestion: true },
+                    { type: "confusing", slideIndex: 5, receivedAt: at(6), hasQuestion: true },
                 ]);
                 assert.deepEqual(await store.dashboardQuestions(code), [
                     { type: "check_thinking", slideIndex: 2, text: "is it the slope?" },
                     { type: "check_thinking", slideIndex: 2, text: "bigger step?" },
+                    { type: "confusing", slideIndex: 5, text: "only me" },
+                    { type: "confusing", slideIndex: 5, text: "only me" },
+                    { type: "confusing", slideIndex: 5, text: "only me" },
                 ]);
                 assert.deepEqual(await store.dashboardFlags("NO-SUCH-CODE"), []);
                 assert.deepEqual(await store.dashboardQuestions(""), []);
@@ -366,7 +402,7 @@ function contract(name, load) {
                     { slideIndex: 2, type: "confusing", flags: 3, students: 3 }, // D2 student excluded
                     { slideIndex: 3, type: "confusing", flags: 3, students: 3 },
                     { slideIndex: 4, type: "worked_example", flags: 4, students: 4 },
-                    // slide 5: four flags, one student, hidden
+                    { slideIndex: 5, type: "confusing", flags: 4, students: 1 }, // one student, four clicks
                 ]);
             });
 
@@ -382,7 +418,9 @@ function contract(name, load) {
                 assert.deepEqual(await store.timeline(room.cls.id, "2026-10-08"), [
                     // 14:58-15:03: s0, s1, D2 student, s2 (the whole room, not just the deck)
                     { bucketStart: at(8), bucketEnd: at(13), type: "confusing", flags: 4, students: 4 },
+                    { bucketStart: at(18), bucketEnd: at(23), type: "confusing", flags: 4, students: 1 },
                     { bucketStart: at(28), bucketEnd: at(33), type: "worked_example", flags: 3, students: 3 },
+                    { bucketStart: at(33), bucketEnd: at(38), type: "worked_example", flags: 1, students: 1 },
                     { bucketStart: at(38), bucketEnd: at(43), type: "catch_up", flags: 3, students: 3 },
                     { bucketStart: at(48), bucketEnd: at(53), type: "confusing", flags: 3, students: 3 },
                 ]);
@@ -404,10 +442,13 @@ function contract(name, load) {
                 assert.deepEqual(await store.transcriptWindow(room.cls.id, "2026-10-01", at(0), at(60)), []);
             });
 
-            test("raw questions only come back once three students asked on that slide", async (t) => {
+            test("raw questions on a slide come back oldest first", async (t) => {
                 if (!store) return t.skip("store unavailable");
                 assert.deepEqual(await store.studentQuestions(room.cls.id, "2026-10-08", 4), ["a", "b", "c"]);
-                assert.deepEqual(await store.studentQuestions(room.cls.id, "2026-10-08", 2), []);
+                assert.deepEqual(
+                    await store.studentQuestions(room.cls.id, "2026-10-08", 2),
+                    ["why do protons move?", "gradient of what?"],
+                );
             });
 
             test("no lecturer view leaks ids, answers or notes text", async (t) => {

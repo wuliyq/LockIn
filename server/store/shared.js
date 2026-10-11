@@ -8,8 +8,9 @@ export const SOURCES = ["slide", "notes"];
 
 // Lecturer views only show a group once this many different students are in it. One
 // flag in a small class identifies its author; one student clicking five times is
-// still one student.
-export const MIN_STUDENTS = 3;
+// still one student. Off (1) for the one-student demo; MIN_STUDENTS=3 turns it on.
+const minStudents = Number.parseInt(process.env.MIN_STUDENTS ?? "", 10);
+export const MIN_STUDENTS = Number.isInteger(minStudents) && minStudents >= 1 ? minStudents : 1;
 // Timeline bucket width. Flags are sparse, so three students rarely flag within the
 // same 30 seconds; five minutes is a realistic cluster window.
 export const BUCKET_MINUTES = 5;

@@ -21,6 +21,17 @@ app.use(cors({
 // Finished lectures carry the deck's text, notes and flags, so allow larger bodies.
 app.use(express.json({ limit: "5mb" }));
 
+// Who's asking: an anonymous id in an HttpOnly cookie (see accountIdFor). The account
+// pages and the lecture workspace both send it, which ties a student's flags and
+// transcript to the lecture they started.
+app.use(
+    ["/api/lectures", "/api/classes", "/api/teaching", "/api/flags", "/api/transcript", "/api/catch-up"],
+    (req, res, next) => {
+        req.accountId = accountIdFor(req, res);
+        next();
+    },
+);
+
 app.get("/api/health", (reg, res) => {
     res.json({
         status: "LockIn backend is running",
@@ -109,7 +120,7 @@ app.post("/api/transcript", async (req, res) => {
     }
 
     try {
-        const lecture = await lectureFor(req.body);
+        const lecture = await lectureFor(req);
         // Server clock only: keep the segment's length, but end it now.
         const durationMs = Math.min(Math.max(Date.parse(endedAt) - Date.parse(startedAt) || 0, 0), 30 * 60_000);
         const end = new Date();
@@ -136,7 +147,7 @@ app.post("/api/catch-up", async (req, res) => {
 
     try {
         const transcriptToSummarize = recentTranscript ||
-            (sessionId && await store.getRecentTranscript((await lectureFor(req.body)).id, slideIndexOf(slideNumber)));
+            (sessionId && await store.getRecentTranscript((await lectureFor(req)).id, slideIndexOf(slideNumber)));
 
         if (!transcriptToSummarize) {
             return res.status(400).json({
@@ -178,7 +189,7 @@ app.post("/api/flags", async (req, res) => {
     }
 
     try {
-        const lecture = await lectureFor(req.body);
+        const lecture = await lectureFor(req);
         // The client's timestamp is ignored: the server clock is the only clock.
         const saved = await store.addFlag(lecture.id, {
             type: toStoredType(flagType),
@@ -293,11 +304,6 @@ app.post("/api/demo/seed", async (req, res) => {
 // an id the client sends. There's no sign-in yet, so each browser gets an anonymous
 // id in an HttpOnly cookie the first time it uses these routes.
 
-app.use(["/api/lectures", "/api/classes"], (req, res, next) => {
-    req.accountId = accountIdFor(req, res);
-    next();
-});
-
 /** The signed-in browser's lectures, newest first. */
 app.get("/api/lectures", async (req, res) => {
     try {
@@ -313,10 +319,11 @@ app.get("/api/lectures", async (req, res) => {
 
 /** Start a lecture. A blank class code is independent study; an unknown one is refused. */
 app.post("/api/lectures", async (req, res) => {
-    const { title, classCode } = req.body;
+    const { title, classCode, studentName } = req.body;
     try {
         const lecture = await store.startLecture({
             studentId: req.accountId,
+            studentName,
             classCode,
             title: title || "Untitled lecture",
         });
@@ -371,6 +378,7 @@ app.post("/api/lectures/:id/finish", async (req, res) => {
         const endedAt = new Date();
         const seconds = Number(snapshot.seconds);
         const changes = { snapshot, filename: snapshot.filename, endedAt };
+        if (snapshot.title) changes.title = snapshot.title;
         if (Number.isFinite(seconds) && seconds > 0) {
             const start = new Date(endedAt.getTime() - seconds * 1000);
             if (start < new Date(lecture.startedAt)) changes.startedAt = start;
@@ -403,6 +411,60 @@ app.post("/api/classes", async (req, res) => {
             if (error.kind === "conflict" && attempt < 5) continue;
             return sendError(res, error, "LockIn could not create this class.");
         }
+    }
+});
+
+// ── What a lecturer sees of their classes' lectures ─────────────────────────
+// As the lecturer pages are designed (previewLecturerApi): every student lecture in
+// the lecturer's classes, and for each one its flags (with the student's question and
+// the AI answer) and when they asked for catch-ups. Never the student's notes,
+// snapshot, catch-up text or transcript.
+
+app.get("/api/teaching/lectures", async (req, res) => {
+    try {
+        const sessions = await store.listClassLectures(req.accountId);
+        const lectures = await Promise.all(
+            sessions.map(async (row) => {
+                const { notePages, ...summary } = lectureSummary(row, (await store.getLecture(row.id))?.snapshot);
+                return { ...summary, flagCount: row.flagCount };
+            }),
+        );
+        return res.json({ lectures });
+    } catch (error) {
+        return sendError(res, error, "LockIn could not load your classes' lectures.");
+    }
+});
+
+app.get("/api/teaching/lectures/:id", async (req, res) => {
+    try {
+        const row = (await store.listClassLectures(req.accountId)).find((item) => item.id === req.params.id);
+        if (!row) throw new store.StoreError("not_found", "Lecture not found.");
+        const snapshot = (await store.getLecture(row.id))?.snapshot ?? {};
+        const { notePages, ...summary } = lectureSummary(row, snapshot);
+        const flags = await store.lectureFlags(row.id);
+        return res.json({
+            lecture: {
+                ...summary,
+                flagCount: flags.length,
+                flags: flags.map((flag) => ({
+                    id: flag.id,
+                    flagType: toClientType(flag.type),
+                    slideNumber: flag.slideIndex >= 0 ? flag.slideIndex + 1 : null,
+                    timestamp: flag.receivedAt,
+                    source: flag.source,
+                    selectedText: flag.selectedText,
+                    studentComment: flag.studentText,
+                    aiAnswer: flag.aiAnswer,
+                })),
+                catchUps: (Array.isArray(snapshot.catchUps) ? snapshot.catchUps : []).map((item, index) => ({
+                    id: item.id ?? String(index),
+                    timestamp: item.timestamp ?? null,
+                    slide: Number.isInteger(item.slide) ? item.slide : null,
+                })),
+            },
+        });
+    } catch (error) {
+        return sendError(res, error, "LockIn could not open this lecture.");
     }
 });
 
@@ -452,7 +514,7 @@ function lectureSummary(row, snapshot) {
         id: row.id,
         title: row.title,
         class_title: row.classTitle,
-        student_name: null,
+        student_name: row.studentName ?? null,
         started_at: row.startedAt,
         ended_at: row.endedAt,
         filename: row.filename ?? snapshot?.filename ?? null,
@@ -481,21 +543,24 @@ function slideIndexOf(slideNumber) {
     return Number.isInteger(number) && number >= 1 ? number - 1 : -1;
 }
 
-// Flags from clients that don't send a student id all count as this one student, so
-// they can only hide signal behind the 3-student gate, never inflate it.
-const UNKNOWN_STUDENT = "00000000-0000-0000-0000-000000000000";
-
 /**
- * The lecture a student request belongs to. `sessionId` is the lecture code from the
- * ?lecture= link, or the browser's own id when there's no code; `studentId` is the
- * browser's anonymous id.
+ * The lecture a workspace request belongs to:
+ *  - `sessionId` is a lecture this browser started from its lecture page (the usual
+ *    case): that lecture, so flags land in the lecturer's class as part of it;
+ *  - `sessionId` is a lecture code (the ?lecture=CODE link): this student's lecture
+ *    under that code today, created if needed;
+ *  - anything else: this student's private lecture for today.
+ * The student is the browser's cookie, or the id an older client sends in the body.
  */
-function lectureFor({ sessionId, studentId }) {
-    const hasCode = !store.isId(sessionId);
-    return store.ensureLecture({
-        studentId: store.isId(studentId) ? studentId : hasCode ? UNKNOWN_STUDENT : sessionId,
-        classCode: hasCode ? sessionId : "",
-    });
+async function lectureFor(req) {
+    const { sessionId, studentId } = req.body;
+    const student = store.isId(studentId) ? studentId.toLowerCase() : req.accountId;
+    if (store.isId(sessionId)) {
+        const lecture = await store.getLecture(sessionId);
+        if (lecture && (lecture.studentId === req.accountId || lecture.studentId === student)) return lecture;
+    }
+    const hasCode = typeof sessionId === "string" && sessionId.trim() && !store.isId(sessionId);
+    return store.ensureLecture({ studentId: student, classCode: hasCode ? sessionId : "" });
 }
 
 async function dashboardFlagsFor(code) {
