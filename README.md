@@ -1,1 +1,118 @@
-# LockIn
+# LockIN 🔒
+
+> A little study buddy for the moments when a lecture loses you.
+
+LockIN helps students stay in the lecture instead of quietly falling behind. Upload slides, take notes beside them, flag the confusing bit, and get a short AI explanation without leaving the page. Afterward, the lecture is saved as a reviewable summary. Lecturers get a dashboard that turns those anonymous flags into useful feedback.
+
+This is a hackathon prototype, so it is built to be easy to demo and easy to understand.
+
+## What you can do
+
+### Student view
+
+- Upload a PDF slide deck and move through it alongside your notes.
+- Highlight part of a slide or select text in your notes, then flag it as:
+  - **Confusing**
+  - **Real-world example**
+  - **Worked example**
+  - **Check my thinking**
+- Ask the focus buddy for a quick example, a check-in, why something matters, or a **Catch me up** summary.
+- Record lecture audio in the background with ElevenLabs transcription.
+- Get gentle focus nudges after a quiet stretch of time.
+- Finish the lecture and come back to a clean summary of your notes, flags, AI answers, and catch-ups.
+
+### Lecturer view
+
+- Open the lecturer dashboard from the role picker, or directly with `?view=lecturer`.
+- See which kinds of questions students are flagging most often.
+- Explore when flags happened during a lecture and which slides need another look.
+- Load the sample lecture for a fast demo.
+- Ask Gemini for anonymous themes and suggestions for the next lecture.
+
+## Quick start
+
+You need a recent Node.js version, plus a Gemini API key. ElevenLabs is optional unless you want live recording.
+
+```bash
+git clone https://github.com/wuliyq/LockIn.git
+cd LockIn
+npm install
+cd client && npm install
+cd ..
+cp .env.example .env
+```
+
+Open `.env` and add your key:
+
+```env
+GEMINI_API_KEY=your_key_here
+# Optional: needed for live speech-to-text
+ELEVENLABS_API_KEY=your_key_here
+```
+
+Then use two terminals.
+
+```bash
+# Terminal 1 — from the project root
+npm run dev
+```
+
+```bash
+# Terminal 2 — from the project root
+cd client
+npm run dev
+```
+
+Open the Vite address printed in Terminal 2 (usually `http://localhost:5173`). The frontend proxies `/api` calls to the Express server on port `3001`.
+
+## A good two-minute demo path
+
+1. Choose **Student** on the entry screen and start a lecture.
+2. Upload a short PDF deck and type one or two notes.
+3. Select a sentence, choose **Confusing**, and submit a question.
+4. Open the focus buddy to show the short AI answer or a catch-up.
+5. Finish the lecture and open its summary from **My lectures**.
+6. Switch to **Lecturer**, choose **Load sample lecture**, and show the flag breakdown and timeline.
+
+## Tech we used
+
+- **React + Vite** for the interface
+- **Express** for the local API server
+- **Google Gemini** for concise explanations, catch-ups, and lecturer insights
+- **ElevenLabs Scribe** for live speech-to-text
+- **PDF.js** for rendering and reading slide decks
+- **PostgreSQL store groundwork** is included under `server/store/` and `server/db/`
+
+## A small but important demo note
+
+The current student role and lecture-history experience is intentionally local to the browser for the prototype. The live lecture dashboard also uses an in-memory server session, so restarting the server clears its live flag/transcript data. That makes the demo fast and removes the need to create an account, but it is not yet multi-user persistence.
+
+## Useful commands
+
+```bash
+# Build the frontend
+cd client && npm run build
+
+# Run the frontend checks
+cd client && npm run lint
+
+# Run server-store tests (requires local PostgreSQL for the test database)
+npm test
+```
+
+## Project map
+
+```text
+client/src/
+  account/     entry screen, lecture home, and saved-lecture review
+  lecturer/    lecturer dashboard, charts, and AI suggestions
+  lockin/      notes, flags, focus nudges, and speech-to-text state
+    stt.js      ElevenLabs realtime transcription client
+  slides/      PDF loading, rendering, and slide-text extraction
+server/
+  index.js     Express routes
+  gemini.js    Gemini calls
+  prompts.js   short, lecture-aware AI prompts
+```
+
+Built at HackNC 2026. Have a question, flag it — that is what LockIN is for. ✨
