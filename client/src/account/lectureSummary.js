@@ -89,7 +89,7 @@ function lineContaining(note, selected) {
 }
 
 const FLAG_LABELS = {
-  confusing: 'Marked as confusing',
+  confusing: 'Question', // saved before the rename
   question: 'Question',
   example: 'Real-world example',
   worked_example: 'Worked example',

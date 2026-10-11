@@ -4,12 +4,11 @@
   /* Flag-type colors, in the fixed order of flagMeta.js. Validated as a categorical set
      (colorblind-safe for neighbours); three sit below 3:1 on the card, so every chart
      also carries labels, a legend and a table view. */
-  --lect-type-1: #2a78d6; /* Confusing (blue) */
+  --lect-type-1: #2a78d6; /* Question (blue) */
   --lect-type-2: #eb6834; /* Real-world example (orange) */
   --lect-type-3: #1baf7a; /* Worked example (aqua) */
   --lect-type-4: #eda100; /* Check my thinking (yellow) */
-  --lect-type-5: #e87ba4; /* Question (magenta) */
-  --lect-type-6: #8a8f98; /* Other (neutral gray) */
+  --lect-type-5: #e87ba4; /* Other (magenta) */
 
   min-height: 100%;
   background: var(--background);

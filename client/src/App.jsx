@@ -13,7 +13,7 @@ import {
   XIcon,
   ZapIcon,
 } from './icons'
-import { AI_LABELS, FLAG_TYPES, useLockIn } from './lockin/useLockIn'
+import { AI_LABELS, FLAG_TYPES, flagTypeId, useLockIn } from './lockin/useLockIn'
 import SelectionFlagger from './lockin/SelectionFlagger'
 import { NUDGE_MINUTES } from './lockin/useFocusNudge'
 import { SlidePanel } from './slides'
@@ -146,13 +146,10 @@ function Notes({ li, pendingSelection, onSelection, clearSelection }) {
   const [confusion, setConfusion] = useState('')
   const [flagType, setFlagType] = useState('question')
   const [showFlags, setShowFlags] = useState(true)
-  const [quickSent, setQuickSent] = useState(false)
-  const quickTimer = useRef(null)
+  const split = useFlagsResize()
   const slideLabel = li.deck
     ? `Slide ${li.current + 1}${li.title ? ` · ${li.title}` : ''}`
     : 'No slides yet'
-
-  useEffect(() => () => window.clearTimeout(quickTimer.current), [])
 
   const captureNoteSelection = (event) => {
     const { selectionStart, selectionEnd, value } = event.currentTarget
@@ -160,104 +157,98 @@ function Notes({ li, pendingSelection, onSelection, clearSelection }) {
     if (selectedText) onSelection({ source: 'notes', selectedText })
   }
 
-  // One tap: flag this moment as confusing for the lecturer, no question needed.
-  const sendQuickFlag = (selection) => {
-    li.quickFlag(selection ?? {})
-    clearSelection()
-    setQuickSent(true)
-    window.clearTimeout(quickTimer.current)
-    quickTimer.current = window.setTimeout(() => setQuickSent(false), 2500)
-  }
-
   return (
-    <>
-      <p className="notes__meta">
-        <span>{li.savedAt ? `Saved ${li.savedAt}` : 'Notes autosave'}</span>
-        <span aria-hidden="true">·</span>
-        <span className="notes__slide">{slideLabel}</span>
-      </p>
+    <div
+      className={`notes ${split.resizing ? 'is-resizing' : ''}`}
+      ref={split.containerRef}
+      style={{ '--flags-height': `${split.height}px` }}
+    >
+      <div className="notes__write">
+        <p className="notes__meta">
+          <span>{li.savedAt ? `Saved ${li.savedAt}` : 'Notes autosave'}</span>
+          <span aria-hidden="true">·</span>
+          <span className="notes__slide">{slideLabel}</span>
+        </p>
 
-      <textarea
-        className="notes__editor"
-        aria-label={`Notes for ${slideLabel}`}
-        value={li.note}
-        data-flag-source="notes"
-        onChange={(event) => li.setNote(event.target.value)}
-        onSelect={captureNoteSelection}
-        placeholder={
-          li.deck
-            ? 'Write freely. Select text to turn it into a flag.'
-            : 'Upload your slides to keep notes linked to each slide, or just start writing.'
-        }
-      />
+        <textarea
+          className="notes__editor"
+          aria-label={`Notes for ${slideLabel}`}
+          value={li.note}
+          data-flag-source="notes"
+          onChange={(event) => li.setNote(event.target.value)}
+          onSelect={captureNoteSelection}
+          placeholder={
+            li.deck
+              ? 'Write freely. Select text to turn it into a flag.'
+              : 'Upload your slides to keep notes linked to each slide, or just start writing.'
+          }
+        />
 
-      {pendingSelection && (
-        <div className="notes__selection">
-          <span>{pendingSelection.source === 'notes' ? '📝 Note selected' : '🖍 Slide area selected'}</span>
-          <b>{truncate(pendingSelection.selectedText, 54)}</b>
-          <button type="button" onClick={clearSelection} aria-label="Clear selected text">×</button>
-        </div>
+        {pendingSelection && (
+          <div className="notes__selection">
+            <span>{pendingSelection.source === 'notes' ? '📝 Note selected' : '🖍 Slide area selected'}</span>
+            <b>{truncate(pendingSelection.selectedText, 54)}</b>
+            <button type="button" onClick={clearSelection} aria-label="Clear selected text">×</button>
+          </div>
+        )}
+
+        <SelectionFlagger
+          enabled={Boolean(li.deck)}
+          onPick={(nextFlagType, selection) => {
+            setFlagType(nextFlagType)
+            onSelection(selection)
+          }}
+        />
+
+        <form
+          className="notes__flag-form"
+          onSubmit={(event) => {
+            event.preventDefault()
+            li.submitFlag(confusion, flagType, pendingSelection ?? {}).then((sent) => {
+              if (sent) {
+                setConfusion('')
+                clearSelection()
+                setShowFlags(true)
+              }
+            })
+          }}
+        >
+          <select
+            value={flagType}
+            onChange={(event) => setFlagType(event.target.value)}
+            aria-label="Type of help needed"
+          >
+            {Object.entries(FLAG_TYPES).map(([value, type]) => (
+              <option key={value} value={value}>{type.label}</option>
+            ))}
+          </select>
+          <input
+            value={confusion}
+            onChange={(event) => setConfusion(event.target.value)}
+            placeholder="Add a question, then flag it"
+            aria-label="Question or note about selected content"
+          />
+          <button type="submit" className="btn-flag" disabled={li.aiLoading}>
+            <FlagIcon /> Flag
+          </button>
+        </form>
+      </div>
+
+      {showFlags && (
+        <div
+          className="notes__resize-handle"
+          role="separator"
+          tabIndex={0}
+          aria-label="Resize notes and flags"
+          aria-orientation="horizontal"
+          aria-valuenow={Math.round(split.height)}
+          aria-valuemin={split.min}
+          onPointerDown={split.beginResize}
+          onKeyDown={split.onKeyDown}
+        />
       )}
 
-      <SelectionFlagger
-        enabled={Boolean(li.deck)}
-        onPick={(nextFlagType, selection) => {
-          if (FLAG_TYPES[nextFlagType]?.quick) {
-            sendQuickFlag(selection)
-            return
-          }
-          setFlagType(nextFlagType)
-          onSelection(selection)
-        }}
-      />
-
-      <form
-        className="notes__flag-form"
-        onSubmit={(event) => {
-          event.preventDefault()
-          li.submitFlag(confusion, flagType, pendingSelection ?? {}).then((sent) => {
-            if (sent) {
-              setConfusion('')
-              clearSelection()
-              setShowFlags(true)
-            }
-          })
-        }}
-      >
-        <button
-          type="button"
-          className={`btn-quick-flag ${quickSent ? 'is-sent' : ''}`}
-          onClick={() => sendQuickFlag(pendingSelection)}
-          disabled={!li.deck}
-          title="Confusing: flag this moment for the lecturer in one tap"
-          aria-label="Flag this moment as confusing"
-        >
-          {quickSent ? '✓' : '?'}
-        </button>
-        <select
-          value={flagType}
-          onChange={(event) => setFlagType(event.target.value)}
-          aria-label="Type of help needed"
-        >
-          {Object.entries(FLAG_TYPES).filter(([, type]) => !type.quick).map(([value, type]) => (
-            <option key={value} value={value}>{type.label}</option>
-          ))}
-        </select>
-        <input
-          value={confusion}
-          onChange={(event) => setConfusion(event.target.value)}
-          placeholder="Add a question, then flag it"
-          aria-label="Question or note about selected content"
-        />
-        <button type="submit" className="btn-flag" disabled={li.aiLoading}>
-          <FlagIcon /> Flag
-        </button>
-      </form>
-      <p className="notes__quick-status" aria-live="polite">
-        {quickSent ? 'Marked as confusing for your lecturer.' : ''}
-      </p>
-
-      <section className="notes__flags" aria-label="My flags">
+      <section className={`notes__flags ${showFlags ? 'is-open' : ''}`} aria-label="My flags">
         <button
           type="button"
           className="notes__flags-toggle"
@@ -269,17 +260,17 @@ function Notes({ li, pendingSelection, onSelection, clearSelection }) {
         </button>
         {showFlags && <FlagHistory flags={li.confusions} onGoToSlide={li.onSlideChange} />}
       </section>
-    </>
+    </div>
   )
 }
 
 function FlagHistory({ flags, onGoToSlide }) {
   const [filter, setFilter] = useState('all')
-  if (flags.length === 0) return <p className="notes__flags-empty">No flags yet. Tap ? when something is confusing, or select a note to ask about it.</p>
+  if (flags.length === 0) return <p className="notes__flags-empty">No flags yet. Select a note or drag across a slide, then ask about it.</p>
 
   const counts = Object.fromEntries(Object.keys(FLAG_TYPES).map((type) => [type, 0]))
-  flags.forEach((flag) => { counts[flag.flagType] = (counts[flag.flagType] ?? 0) + 1 })
-  const shown = filter === 'all' ? flags : flags.filter((flag) => flag.flagType === filter)
+  flags.forEach((flag) => { counts[flagTypeId(flag.flagType)] = (counts[flagTypeId(flag.flagType)] ?? 0) + 1 })
+  const shown = filter === 'all' ? flags : flags.filter((flag) => flagTypeId(flag.flagType) === filter)
 
   return (
     <div className="notes__flag-history" aria-label="My flags">
@@ -295,7 +286,7 @@ function FlagHistory({ flags, onGoToSlide }) {
       </div>
       {[...shown].reverse().map((flag) => (
         <article className="flag-card" key={flag.id}>
-          <span className="flag-card__type">{FLAG_TYPES[flag.flagType]?.label ?? 'Flag'}</span>
+          <span className="flag-card__type">{FLAG_TYPES[flagTypeId(flag.flagType)]?.label ?? 'Flag'}</span>
           <button type="button" className="flag-card__source" onClick={() => onGoToSlide(flag.slide)}>
             {flag.source === 'notes' ? 'Note' : 'Slide'} {flag.slide + 1} · {formatTime(flag.createdAt)}
           </button>
@@ -427,6 +418,58 @@ function Helper({ li, onStartSession }) {
       </div>
     </div>
   )
+}
+
+const FLAGS_MIN = 96 // px: room for the My flags header and a card
+const NOTES_MIN = 260 // px kept for the notes editor and flag form
+
+/** Drag (or arrow-key) the line between the notes and My flags to share the column. */
+function useFlagsResize() {
+  const containerRef = useRef(null)
+  const [height, setHeight] = useState(240)
+  const [resizing, setResizing] = useState(false)
+
+  const clamp = (value) => {
+    const total = containerRef.current?.getBoundingClientRect().height ?? 0
+    const max = Math.max(FLAGS_MIN, total - NOTES_MIN)
+    return Math.min(max, Math.max(FLAGS_MIN, value))
+  }
+
+  useEffect(() => {
+    if (!resizing) return undefined
+    const update = (event) => {
+      const rect = containerRef.current?.getBoundingClientRect()
+      if (!rect) return
+      const total = rect.height
+      const max = Math.max(FLAGS_MIN, total - NOTES_MIN)
+      setHeight(Math.min(max, Math.max(FLAGS_MIN, rect.bottom - event.clientY)))
+    }
+    const stop = () => setResizing(false)
+    window.addEventListener('pointermove', update)
+    window.addEventListener('pointerup', stop)
+    return () => {
+      window.removeEventListener('pointermove', update)
+      window.removeEventListener('pointerup', stop)
+    }
+  }, [resizing])
+
+  return {
+    containerRef,
+    height,
+    min: FLAGS_MIN,
+    resizing,
+    beginResize: (event) => {
+      event.preventDefault()
+      setResizing(true)
+    },
+    onKeyDown: (event) => {
+      const step = event.shiftKey ? 64 : 16
+      if (event.key === 'ArrowUp') setHeight((value) => clamp(value + step))
+      else if (event.key === 'ArrowDown') setHeight((value) => clamp(value - step))
+      else return
+      event.preventDefault()
+    },
+  }
 }
 
 function usePanelResize() {

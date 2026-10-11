@@ -12,7 +12,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 export const NUDGE_MESSAGES = [
   'Still with us? Write one thing you just heard.',
   'Quick one: jot down a keyword from the last few minutes.',
-  'Lost the thread? Tap ? to flag it, or ask me to catch you up.',
+  'Lost the thread? Flag a question, or ask me to catch you up.',
   "What's the main idea on this slide? One line is enough.",
 ]
 

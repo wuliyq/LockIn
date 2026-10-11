@@ -2,7 +2,7 @@
  *
  * Research basis: warm hues (amber/coral) win pre-attentive attention, so they are
  * reserved for small action cues; low-saturation cool/green grounds support
- * sustained focus and reduce visual fatigue. Red is only used for "confusing" flags.
+ * sustained focus and reduce visual fatigue. Red is only used for flags.
  *
  * Every component reads these variables, so a new theme is just another class
  * that overrides them (see .theme-sage).

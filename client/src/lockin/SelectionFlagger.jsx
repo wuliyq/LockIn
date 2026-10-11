@@ -4,8 +4,7 @@ import { FLAG_TYPES } from './useLockIn'
 /**
  * Shows a compact choice bar next to selected note text. Choosing a type keeps
  * the selection in the normal LockIN composer, so students can add a question
- * before it is sent to Gemini and the lecturer dashboard. Quick types ("? Confusing")
- * are sent straight away by the parent.
+ * before it is sent to Gemini and the lecturer dashboard.
  */
 export default function SelectionFlagger({ enabled, onPick }) {
   const [pick, setPick] = useState(null)
@@ -77,14 +76,13 @@ export default function SelectionFlagger({ enabled, onPick }) {
         <button
           key={flagType}
           type="button"
-          className={type.quick ? 'is-quick' : undefined}
-          title={type.quick ? `${type.label}: flag it now, no question needed` : type.label}
+          title={type.label}
           onClick={() => {
             onPick(flagType, { source: pick.source, selectedText: pick.text })
             setPick(null)
           }}
         >
-          {type.quick ? `? ${type.label}` : type.label}
+          {type.label}
         </button>
       ))}
     </div>

@@ -260,14 +260,67 @@
   min-width: 0;
 }
 
+.notes {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.notes__write {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* The line between the notes and My flags: drag it (or focus it and use the arrow
+   keys) to give either side more room, like the line beside the slides. */
+.notes__resize-handle {
+  flex-shrink: 0;
+  height: 1.25rem;
+  margin: 0.25rem 0;
+  cursor: row-resize;
+  touch-action: none;
+  border-radius: 999px;
+  background: linear-gradient(to bottom, transparent 45%, var(--border) 45%, var(--border) 55%, transparent 55%);
+  transition: background-color 0.15s;
+}
+
+.notes__resize-handle:hover,
+.notes__resize-handle:focus-visible,
+.notes.is-resizing .notes__resize-handle {
+  background-color: color-mix(in oklab, var(--cue) 25%, transparent);
+  outline: none;
+}
+
+.notes.is-resizing,
+.notes.is-resizing * {
+  cursor: row-resize !important;
+  user-select: none;
+}
+
 .notes__flags {
   flex-shrink: 0;
-  margin-top: 0.25rem;
+  margin-top: 0.75rem;
   padding-top: 0.75rem;
   border-top: 1px solid var(--border);
 }
 
+.notes__flags.is-open {
+  display: flex;
+  flex-direction: column;
+  height: var(--flags-height);
+  min-height: 6rem;
+  /* never squeeze the notes below their working size, even after a window resize */
+  max-height: calc(100% - 16rem);
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
 .notes__flags-toggle {
+  align-self: flex-start;
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
@@ -345,39 +398,6 @@
   border-radius: 999px;
 }
 
-.btn-quick-flag {
-  flex-shrink: 0;
-  width: 2.4rem;
-  height: 2.4rem;
-  display: grid;
-  place-items: center;
-  border: 2px solid var(--flag);
-  border-radius: 50%;
-  background: var(--card);
-  color: var(--flag);
-  font-size: 1.15rem;
-  font-weight: 800;
-  line-height: 1;
-  transition: background-color 0.15s, color 0.15s;
-}
-
-.btn-quick-flag:not(:disabled):hover,
-.btn-quick-flag.is-sent {
-  background: var(--flag);
-  color: var(--flag-foreground);
-}
-
-.btn-quick-flag:disabled {
-  opacity: 0.5;
-}
-
-.notes__quick-status {
-  min-height: 1.1rem;
-  margin: 0.3rem 0 0 0.25rem;
-  font-size: 0.75rem;
-  color: var(--muted-foreground);
-}
-
 @media (max-width: 520px) {
   .notes__flag-form {
     flex-wrap: wrap;
@@ -434,9 +454,11 @@
 }
 
 .notes__flag-history {
+  flex: 1;
+  min-height: 0;
   display: grid;
+  align-content: start;
   gap: 0.5rem;
-  max-height: 14rem;
   overflow: auto;
 }
 
@@ -535,11 +557,6 @@
   color: var(--foreground);
   font-size: 0.7rem;
   font-weight: 700;
-}
-
-.selection-flagger button.is-quick {
-  background: var(--flag);
-  color: var(--flag-foreground);
 }
 
 .selection-flagger button:hover {

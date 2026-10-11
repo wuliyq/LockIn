@@ -19,19 +19,19 @@ test('a flag on selected note text goes right under the line it came from', () =
   assert.equal(section.blocks[0].additions[0].quote, '', 'selection is already in the notes above')
 })
 
-test('slide flags, quick flags and catch-ups go after the slide notes, in time order', () => {
+test('slide flags and catch-ups go after the slide notes, in time order', () => {
   const [section] = buildLectureSummary({
     slides,
     notes: { 1: 'Eta sets the step size.' },
     flags: [
       { id: 'late', slideNumber: 2, flagType: 'example', source: 'slide', selectedText: 'Learning rate', studentComment: '', timestamp: '2026-10-10T14:20:00Z' },
-      { id: 'quick', slide: 1, flagType: 'confusing', source: 'slide', selectedText: '', studentComment: '', text: 'Confusing moment on slide 2', createdAt: '2026-10-10T14:05:00Z' },
+      { id: 'early', slide: 1, flagType: 'question', source: 'slide', selectedText: '', studentComment: 'What is eta?', createdAt: '2026-10-10T14:05:00Z' },
     ],
     catchUps: [{ slide: 1, summary: ['- Big steps overshoot.'], timestamp: '2026-10-10T14:10:00Z' }],
   })
   assert.equal(section.blocks.length, 1)
-  assert.deepEqual(section.blocks[0].additions.map((a) => a.id), ['quick', 'catch-up-0', 'late'])
-  assert.equal(section.blocks[0].additions[0].comment, '')
+  assert.deepEqual(section.blocks[0].additions.map((a) => a.id), ['early', 'catch-up-0', 'late'])
+  assert.equal(section.blocks[0].additions[0].comment, 'What is eta?')
   assert.deepEqual(section.blocks[0].additions[1].points, ['Big steps overshoot.'])
   assert.equal(section.blocks[0].additions[2].quote, '', 'slide-title fallback is not repeated')
 })
@@ -50,5 +50,6 @@ test('slides with flags but no notes still appear, and empty slides are skipped'
 test('older saved flags with only `text` keep their question', () => {
   const [section] = buildLectureSummary({ notes: {}, flags: [{ id: 'old', slide: 0, flagType: 'confusing', selectedText: 'The gradient', text: 'Why uphill?' }] })
   assert.equal(section.blocks[0].additions[0].comment, 'Why uphill?')
+  assert.equal(section.blocks[0].additions[0].label, 'Question')
   assert.equal(section.blocks[0].additions[0].quote, 'The gradient')
 })

@@ -61,11 +61,10 @@ function Addition({ addition }) {
     )
   }
 
-  const quick = addition.flagType === 'confusing' && !addition.comment && !addition.answer
   return (
-    <div className={`lecture-summary__addition ${quick ? 'is-quick' : ''}`}>
+    <div className="lecture-summary__addition">
       <p className="lecture-summary__label">
-        <b>{quick ? '? ' : ''}{addition.label}</b>
+        <b>{addition.label}</b>
         {addition.comment && <span>: {addition.comment}</span>}
         {when}
       </p>
