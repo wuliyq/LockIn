@@ -33,6 +33,17 @@ const [slideIndex, setSlideIndex] = useState(0)
 
 When a new PDF opens, the order is: `onDeckReady(null)`, `onSlideChange(0)`, `onDeckReady(deck)`.
 
+### SlideStrip
+
+A row of thumbnails for a PDF `File` you already have (the lecturer dashboard draws its
+flags-per-slide chart above it). Each thumbnail is exactly `cellWidth` px wide, so a chart
+using the same width per slide lines up with it. Like `SlidePanel`, it keeps the pdf.js
+document inside and hands back a `DeckContext`.
+
+```jsx
+<SlideStrip file={pdfFile} cellWidth={120} onDeckReady={setDeck} onError={setError} />
+```
+
 ### DeckContext
 
 Defined in [`contract/stubDeckContext.js`](contract/stubDeckContext.js), which also exports a
@@ -94,8 +105,8 @@ editor, the current slide text, an `onSlideChange` log, and the extracted terms.
 
 | Folder | Contents |
 | --- | --- |
-| `index.js` | Public exports: `SlidePanel`, `stubDeckContext` |
-| `components/` | `SlidePanel` (the panel) and `SlideCanvas` (draws one page) |
+| `index.js` | Public exports: `SlidePanel`, `SlideStrip`, `stubDeckContext` |
+| `components/` | `SlidePanel` (the panel), `SlideStrip` (thumbnail row) and `SlideCanvas` (draws one page) |
 | `pdf/` | pdf.js setup, loading, upload checks, friendly error messages |
 | `extraction/` | PDF to `DeckContext`: page text, term extraction, common-word list |
 | `contract/` | The `DeckContext` shape and placeholder |

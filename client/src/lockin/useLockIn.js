@@ -373,8 +373,16 @@ async function apiRequest(path, { method = 'GET', body } = {}) {
   return payload
 }
 
+/**
+ * Which lecture this student's flags and transcript belong to. A lecture code in
+ * the link (?lecture=CSC422-L7, shared by the lecturer) puts the whole class in one
+ * session so the lecturer dashboard can see everyone; without one, the browser
+ * keeps its own private session.
+ */
 function useSessionId() {
   const [sessionId] = useState(() => {
+    const code = new URLSearchParams(window.location.search).get('lecture')?.trim()
+    if (code) return code.toUpperCase()
     const key = 'lockin.sessionId'
     try {
       const existing = localStorage.getItem(key)

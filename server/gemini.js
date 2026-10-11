@@ -65,3 +65,19 @@ export async function summarizeRecentTranscript({
 
     return summary;
 }
+
+/** Raw model reply for a lecturer-insights prompt (see insights.js). */
+export async function generateInsights(prompt) {
+    const result = await ai.models.generateContent({
+        model: process.env.GEMINI_MODEL || "gemini-3.8-flash",
+        contents: prompt,
+    });
+
+    const text = result.text?.trim();
+
+    if (!text) {
+        throw new Error("Gemini returned an empty insights reply.");
+    }
+
+    return text;
+}

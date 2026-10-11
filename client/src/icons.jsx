@@ -140,3 +140,40 @@ export const TargetIcon = (p) => (
     <circle cx="12" cy="12" r="2" />
   </Icon>
 )
+
+export const LinkIcon = (p) => (
+  <Icon {...p}>
+    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+  </Icon>
+)
+
+export const ArrowLeftIcon = (p) => (
+  <Icon {...p}>
+    <path d="m12 19-7-7 7-7" />
+    <path d="M19 12H5" />
+  </Icon>
+)
+
+export const SparklesIcon = (p) => (
+  <Icon {...p}>
+    <path d="M9.94 14.06 8 20l-1.94-5.94L0 12l6.06-1.94L8 4l1.94 6.06L16 12z" transform="translate(2 -1) scale(0.9)" />
+    <path d="M19 3v4" />
+    <path d="M21 5h-4" />
+  </Icon>
+)
+
+export const ChartIcon = (p) => (
+  <Icon {...p}>
+    <path d="M3 3v18h18" />
+    <path d="m7 15 4-4 3 3 5-6" />
+  </Icon>
+)
+
+export const TableIcon = (p) => (
+  <Icon {...p}>
+    <rect x="3" y="4" width="18" height="16" rx="2" />
+    <path d="M3 10h18" />
+    <path d="M9 4v16" />
+  </Icon>
+)
