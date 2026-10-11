@@ -448,6 +448,13 @@ export async function ensureLecture({ studentId, classCode, startedAt } = {}) {
     return toLecture(rows[0]);
 }
 
+// askedText() from shared.js in SQL: the typed question, else highlighted text that
+// isn't the "Highlighted area on slide N" placeholder.
+const ASKED_TEXT = `COALESCE(
+    student_text,
+    CASE WHEN selected_text ~ '^Highlighted area on slide [0-9]+$' THEN NULL ELSE selected_text END
+)`;
+
 /**
  * A code's flags, keeping only slide/type groups that MIN_STUDENTS different
  * students flagged. Uses $1 = code, $2 = MIN_STUDENTS.
@@ -480,7 +487,7 @@ const GATED_CODE_FLAGS = `
 export async function dashboardFlags(classCode) {
     const { rows } = await run(
         `WITH ${GATED_CODE_FLAGS}
-         SELECT type, slide_index, received_at, student_text IS NOT NULL AS has_question
+         SELECT type, slide_index, received_at, ${ASKED_TEXT} IS NOT NULL AS has_question
          FROM gated
          ORDER BY received_at, id`,
         [normalizeCode(classCode), MIN_STUDENTS],
@@ -500,12 +507,12 @@ export async function dashboardFlags(classCode) {
 export async function dashboardQuestions(classCode) {
     const { rows } = await run(
         `WITH ${GATED_CODE_FLAGS}
-         SELECT type, slide_index, student_text FROM gated
-         WHERE student_text IS NOT NULL
+         SELECT type, slide_index, ${ASKED_TEXT} AS asked FROM gated
+         WHERE ${ASKED_TEXT} IS NOT NULL
          ORDER BY received_at, id`,
         [normalizeCode(classCode), MIN_STUDENTS],
     );
-    return rows.map((row) => ({ type: row.type, slideIndex: row.slide_index, text: row.student_text }));
+    return rows.map((row) => ({ type: row.type, slideIndex: row.slide_index, text: row.asked }));
 }
 
 /** Deletes every lecture (and so every flag and transcript) under a code. Keeps the class. */

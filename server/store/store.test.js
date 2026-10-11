@@ -310,6 +310,26 @@ function contract(name, load) {
                 assert.deepEqual(await store.dashboardQuestions(""), []);
             });
 
+            test("highlighted text counts as what the student asked", async (t) => {
+                if (!store) return t.skip("store unavailable");
+                const code = newCode();
+                const lecture = await store.ensureLecture({ studentId: id(), classCode: code });
+                const base = Date.parse("2026-10-11T15:00:00Z");
+                const flag = (minute, fields) => store.addFlag(lecture.id, { receivedAt: new Date(base + minute * 60_000), slideIndex: 1, ...fields });
+                await flag(1, { type: "why_it_matters", source: "slide", selectedText: "Gradient descent" });
+                await flag(2, { type: "confusing", source: "notes", selectedText: "my note", studentText: "typed question" });
+                await flag(3, { type: "real_world", source: "slide", selectedText: "Highlighted area on slide 2" });
+                await flag(4, { type: "catch_up", source: "transcript", aiAnswer: "recap" });
+
+                assert.deepEqual((await store.dashboardFlags(code)).map((f) => [f.type, f.hasQuestion]), [
+                    ["why_it_matters", true], // highlighted text, no typed question
+                    ["confusing", true],
+                    ["real_world", false], // only the placeholder for a slide-area highlight
+                    ["catch_up", false],
+                ]);
+                assert.deepEqual((await store.dashboardQuestions(code)).map((q) => q.text), ["Gradient descent", "typed question"]);
+            });
+
             test("resetting a code clears its lectures but keeps the code", async (t) => {
                 if (!store) return t.skip("store unavailable");
                 const code = newCode();

@@ -608,7 +608,7 @@ async function seedDemoLecture(code) {
         await store.addFlag(lectures.get(studentId).id, {
             type: toStoredType(flag.flagType),
             slideIndex: slideIndexOf(flag.slideNumber),
-            source: flag.source === "transcript" ? null : flag.source,
+            source: flag.source,
             selectedText: flag.selectedText,
             studentText: flag.studentComment,
             receivedAt: flag.timestamp,

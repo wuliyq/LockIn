@@ -3,8 +3,20 @@
  * and rejects exactly what Postgres's constraints do, with the same errors.
  */
 
-export const FLAG_TYPES = ["catch_up", "confusing", "real_world", "worked_example", "check_thinking"];
-export const SOURCES = ["slide", "notes"];
+// worked_example is no longer offered by the client but stays valid for older flags.
+export const FLAG_TYPES = ["catch_up", "confusing", "real_world", "worked_example", "check_thinking", "why_it_matters"];
+// Where a flag's text came from; "transcript" is a Catch me up.
+export const SOURCES = ["slide", "notes", "transcript"];
+
+// What a slide-area highlight with no text is saved as; it says nothing the slide doesn't.
+export const PLACEHOLDER_SELECTION = /^Highlighted area on slide \d+$/;
+
+/** What the student asked: their typed question, else the text they highlighted. */
+export function askedText(flag) {
+    if (flag.studentText) return flag.studentText;
+    if (flag.selectedText && !PLACEHOLDER_SELECTION.test(flag.selectedText)) return flag.selectedText;
+    return null;
+}
 
 // Lecturer views only show a group once this many different students are in it. One
 // flag in a small class identifies its author; one student clicking five times is

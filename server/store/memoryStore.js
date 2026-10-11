@@ -1,4 +1,5 @@
 import {
+    askedText,
     BUCKET_MINUTES,
     MESSAGES,
     MIN_STUDENTS,
@@ -396,14 +397,14 @@ export async function dashboardFlags(classCode) {
         type: f.type,
         slideIndex: f.slideIndex,
         receivedAt: f.receivedAt,
-        hasQuestion: f.studentText !== null,
+        hasQuestion: askedText(f) !== null,
     }));
 }
 
 export async function dashboardQuestions(classCode) {
     return gatedCodeFlags(classCode)
-        .filter((f) => f.studentText !== null)
-        .map((f) => ({ type: f.type, slideIndex: f.slideIndex, text: f.studentText }));
+        .filter((f) => askedText(f) !== null)
+        .map((f) => ({ type: f.type, slideIndex: f.slideIndex, text: askedText(f) }));
 }
 
 export async function resetClass(classCode) {

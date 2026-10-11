@@ -69,12 +69,12 @@ CREATE TABLE flags (
   id            BIGSERIAL   PRIMARY KEY,
   session_id    UUID        NOT NULL REFERENCES lectures (id) ON DELETE CASCADE,
   type          TEXT        NOT NULL
-                  CHECK (type IN ('catch_up', 'confusing', 'real_world', 'worked_example', 'check_thinking')),
+                  CHECK (type IN ('catch_up', 'confusing', 'real_world', 'worked_example', 'check_thinking', 'why_it_matters')),
   slide_index   INT         NOT NULL DEFAULT -1 CHECK (slide_index >= -1),  -- 0-based; -1 = unknown
   -- Where selected_text came from. Only 'slide' text is the lecturer's own words and
   -- safe to show verbatim; 'notes' text is the student's writing and is treated like
-  -- student_text.
-  source        TEXT        CHECK (source IN ('slide', 'notes')),
+  -- student_text. 'transcript' is a Catch me up.
+  source        TEXT        CHECK (source IN ('slide', 'notes', 'transcript')),
   selected_text TEXT,
   student_text  TEXT,       -- never shown to a lecturer unparaphrased
   ai_answer     TEXT,       -- restates the question, so same rule as student_text
