@@ -4,8 +4,6 @@
 
 LockIN helps students stay in the lecture instead of quietly falling behind. Upload slides, take notes beside them, flag the confusing bit, and get a short AI explanation without leaving the page. Afterward, the lecture is saved as a reviewable summary. Lecturers get a dashboard that turns those anonymous flags into useful feedback.
 
-This is a hackathon prototype, so it is built to be easy to demo and easy to understand.
-
 ## What you can do
 
 ### Student view
@@ -31,7 +29,7 @@ This is a hackathon prototype, so it is built to be easy to demo and easy to und
 
 ## Quick start
 
-You need a recent Node.js version, plus a Gemini API key. ElevenLabs is optional unless you want live recording.
+You need a recent Node.js version, plus Gemini API key and Elevenlabs API for live recording.
 
 ```bash
 git clone https://github.com/wuliyq/LockIn.git
