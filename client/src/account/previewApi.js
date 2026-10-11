@@ -3,7 +3,10 @@ import { request as backendRequest } from './api.js'
 // Explicit UI preview only. Never used as a fallback for a failed real login.
 // No passwords or real-account data are stored here.
 const KEY = 'lockin.ui-preview.v1'
-const sampleFlags = [{ id: 'sample-flag', slide: 0, flagType: 'confusing', selectedText: 'The gradient points uphill.', text: 'Why do we move the opposite way?', aiAnswer: 'The gradient points toward increasing loss. Moving opposite helps reduce it.', createdAt: '2026-10-10T14:12:00Z' }]
+const sampleFlags = [
+  { id: 'sample-flag', slide: 0, flagType: 'question', source: 'notes', selectedText: 'We take a small step in the opposite direction', studentComment: 'Why do we move the opposite way?', text: 'Why do we move the opposite way?', aiAnswer: 'The gradient points toward increasing loss. Moving opposite helps reduce it.', createdAt: '2026-10-10T14:12:00Z' },
+  { id: 'sample-quick', slide: 1, flagType: 'confusing', source: 'slide', selectedText: '', studentComment: '', text: 'Confusing moment on slide 2', createdAt: '2026-10-10T14:18:00Z' },
+]
 function initial() {
   return {
     classes: [{ id: 'sample-class', title: 'Introduction to machine learning', code: 'PREVIEW' }],
