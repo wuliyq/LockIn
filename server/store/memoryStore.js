@@ -1,4 +1,5 @@
 import {
+    askedText,
     BUCKET_MINUTES,
     MESSAGES,
     MIN_STUDENTS,
@@ -25,7 +26,7 @@ import {
  * only. Routes must never pass client times: the server clock is the only clock.
  */
 
-const users = new Set();
+const users = new Map(); // id -> { name }
 const classes = new Map(); // id -> class
 const lectures = new Map(); // id -> lecture (snapshot stored as JSON, like JSONB)
 const flags = []; // ids are strings, like Postgres BIGSERIAL through pg
@@ -39,9 +40,9 @@ const copy = (lecture) => ({ ...lecture, snapshot: asJson(lecture.snapshot) });
 const byStartDesc = (a, b) => b.startedAt.localeCompare(a.startedAt) || b.id.localeCompare(a.id);
 const byStartAsc = (a, b) => a.startedAt.localeCompare(b.startedAt) || a.order - b.order;
 
-export async function ensureUser(userId) {
+export async function ensureUser(userId, { name } = {}) {
     const id = requireId(userId, "userId");
-    users.add(id);
+    users.set(id, { name: optionalText(name) ?? users.get(id)?.name ?? null });
     return { id };
 }
 
@@ -67,7 +68,7 @@ export async function findClassByCode(code) {
     return found ? { ...found } : null;
 }
 
-export async function startLecture({ studentId, classCode, title, filename, deckHash, startedAt: at } = {}) {
+export async function startLecture({ studentId, studentName, classCode, title, filename, deckHash, startedAt: at } = {}) {
     const student = requireId(studentId, "studentId");
     let classId = null;
     if (normalizeCode(classCode)) {
@@ -77,7 +78,7 @@ export async function startLecture({ studentId, classCode, title, filename, deck
     }
 
     const startedAt = dateOf(at, "startedAt");
-    await ensureUser(student);
+    await ensureUser(student, { name: studentName });
     const lecture = {
         id: crypto.randomUUID(),
         studentId: student,
@@ -107,6 +108,12 @@ export async function updateLecture(lectureId, changes = {}) {
     // Validate everything before touching the row, as one UPDATE statement would.
     const next = { ...lecture };
     if (changes.title !== undefined) next.title = optionalText(changes.title);
+    if (changes.filename !== undefined) next.filename = optionalText(changes.filename);
+    if (changes.startedAt !== undefined) {
+        const startedAt = dateOf(changes.startedAt, "startedAt");
+        next.startedAt = startedAt.toISOString();
+        next.lectureDate = lectureDateOf(startedAt);
+    }
     if (changes.endedAt !== undefined) {
         next.endedAt = changes.endedAt === null ? null : dateOf(changes.endedAt, "endedAt").toISOString();
     }
@@ -326,4 +333,125 @@ export async function studentQuestions(classId, lectureDate, slideIndex) {
     return asked
         .sort((a, b) => a.receivedAt.localeCompare(b.receivedAt) || byFlagId(a, b))
         .map((f) => f.studentText);
+}
+
+// ── Lecture-code flow (the ?lecture=CODE dashboard) ──────────────────────────
+// Mirrors pgStore.js: the first flag or transcript line from a student under a
+// code creates their lecture for the day, and the code's class if needed.
+
+function ensureClass(code) {
+    const found = [...classes.values()].find((c) => c.code === code);
+    if (found) return found;
+    const created = { id: crypto.randomUUID(), lecturerId: null, title: code, code, createdAt: now() };
+    classes.set(created.id, created);
+    return created;
+}
+
+export async function ensureLecture({ studentId, classCode, startedAt } = {}) {
+    const student = requireId(studentId, "studentId");
+    const at = dateOf(startedAt, "startedAt");
+    const code = normalizeCode(classCode);
+    const classId = code ? ensureClass(code).id : null;
+
+    await ensureUser(student);
+    const date = lectureDateOf(at);
+    const [existing] = [...lectures.values()]
+        .filter((l) => l.studentId === student && l.classId === classId && l.lectureDate === date)
+        .sort(byStartDesc);
+    if (existing) return copy(existing);
+
+    const lecture = {
+        id: crypto.randomUUID(),
+        studentId: student,
+        classId,
+        title: null,
+        filename: null,
+        deckHash: null,
+        startedAt: at.toISOString(),
+        endedAt: null,
+        lectureDate: date,
+        snapshot: null,
+        updatedAt: at.toISOString(),
+    };
+    lectures.set(lecture.id, lecture);
+    return copy(lecture);
+}
+
+/** A code's flags, keeping only slide/type groups that MIN_STUDENTS different students flagged. */
+function gatedCodeFlags(classCode) {
+    const code = normalizeCode(classCode);
+    const cls = [...classes.values()].find((c) => c.code === code);
+    if (!cls) return [];
+    const coded = flagsOf([...lectures.values()].filter((l) => l.classId === cls.id))
+        .filter((f) => f.slideIndex >= 0);
+    const shown = new Set(
+        gatedGroups(coded, (f) => [f.slideIndex, f.type]).map(({ row }) => JSON.stringify([row.slideIndex, row.type])),
+    );
+    return coded
+        .filter((f) => shown.has(JSON.stringify([f.slideIndex, f.type])))
+        .sort((a, b) => a.receivedAt.localeCompare(b.receivedAt) || byFlagId(a, b));
+}
+
+export async function dashboardFlags(classCode) {
+    return gatedCodeFlags(classCode).map((f) => ({
+        type: f.type,
+        slideIndex: f.slideIndex,
+        receivedAt: f.receivedAt,
+        hasQuestion: askedText(f) !== null,
+    }));
+}
+
+export async function dashboardQuestions(classCode) {
+    return gatedCodeFlags(classCode)
+        .filter((f) => askedText(f) !== null)
+        .map((f) => ({ type: f.type, slideIndex: f.slideIndex, text: askedText(f) }));
+}
+
+export async function resetClass(classCode) {
+    const code = normalizeCode(classCode);
+    const cls = [...classes.values()].find((c) => c.code === code);
+    if (!cls) return;
+    const doomed = new Set([...lectures.values()].filter((l) => l.classId === cls.id).map((l) => l.id));
+    for (const lectureId of doomed) lectures.delete(lectureId);
+    // ON DELETE CASCADE
+    for (const list of [flags, segments]) {
+        for (let i = list.length - 1; i >= 0; i--) if (doomed.has(list[i].sessionId)) list.splice(i, 1);
+    }
+}
+
+/** Always ready; nothing to connect to. */
+export async function ready() {}
+
+export async function listClasses(lecturerId) {
+    const lecturer = requireId(lecturerId, "lecturerId");
+    return [...classes.values()]
+        .filter((c) => c.lecturerId === lecturer)
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || byCode(b.id, a.id))
+        .map((c) => ({ ...c }));
+}
+
+export async function listClassLectures(lecturerId) {
+    const lecturer = requireId(lecturerId, "lecturerId");
+    return [...lectures.values()]
+        .filter((l) => l.classId && classes.get(l.classId)?.lecturerId === lecturer)
+        .sort(byStartDesc)
+        .map((l) => ({
+            id: l.id,
+            title: l.title,
+            filename: l.filename,
+            startedAt: l.startedAt,
+            endedAt: l.endedAt,
+            lectureDate: l.lectureDate,
+            classTitle: classes.get(l.classId).title,
+            studentName: users.get(l.studentId)?.name ?? null,
+            flagCount: flags.filter((f) => f.sessionId === l.id).length,
+        }));
+}
+
+export async function lectureFlags(lectureId) {
+    const id = requireId(lectureId, "lectureId");
+    return flags
+        .filter((f) => f.sessionId === id)
+        .sort((a, b) => a.receivedAt.localeCompare(b.receivedAt) || byFlagId(a, b))
+        .map((f) => ({ ...f }));
 }

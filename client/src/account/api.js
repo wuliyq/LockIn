@@ -1,6 +1,22 @@
 const BASE = (import.meta.env?.VITE_API_URL || '').replace(/\/$/, '')
 
+let session = null
+
+/**
+ * One request that gives this browser its anonymous id cookie, made before any other
+ * API call. Without it, the page's first requests go out together, each without a
+ * cookie, and each gets a different id: a lecture started then would belong to an id
+ * the browser no longer has. Retried on the next call if the server was unreachable.
+ */
+export function ensureSession() {
+  session ??= fetch(`${BASE}/api/session`, { method: 'POST', credentials: 'include' })
+    .then((response) => { if (!response.ok) session = null })
+    .catch(() => { session = null })
+  return session
+}
+
 export async function request(path, { method = 'GET', body, signal } = {}) {
+  await ensureSession()
   let response
   try {
     response = await fetch(`${BASE}${path}`, {

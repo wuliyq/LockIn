@@ -368,6 +368,19 @@
   gap: 1.25rem;
 }
 
+/* Class code (optional) + New lecture, side by side; stacks on narrow screens. */
+.account-start {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+.account-start input {
+  width: 12rem;
+  text-transform: uppercase;
+}
+
 .account-home h1 {
   margin: 0.75rem 0;
   font-family: var(--font-display);

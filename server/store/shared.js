@@ -3,13 +3,26 @@
  * and rejects exactly what Postgres's constraints do, with the same errors.
  */
 
-export const FLAG_TYPES = ["catch_up", "confusing", "real_world", "worked_example"];
-export const SOURCES = ["slide", "notes"];
+// worked_example is no longer offered by the client but stays valid for older flags.
+export const FLAG_TYPES = ["catch_up", "confusing", "real_world", "worked_example", "check_thinking", "why_it_matters"];
+// Where a flag's text came from; "transcript" is a Catch me up.
+export const SOURCES = ["slide", "notes", "transcript"];
+
+// What a slide-area highlight with no text is saved as; it says nothing the slide doesn't.
+export const PLACEHOLDER_SELECTION = /^Highlighted area on slide \d+$/;
+
+/** What the student asked: their typed question, else the text they highlighted. */
+export function askedText(flag) {
+    if (flag.studentText) return flag.studentText;
+    if (flag.selectedText && !PLACEHOLDER_SELECTION.test(flag.selectedText)) return flag.selectedText;
+    return null;
+}
 
 // Lecturer views only show a group once this many different students are in it. One
 // flag in a small class identifies its author; one student clicking five times is
-// still one student.
-export const MIN_STUDENTS = 3;
+// still one student. Off (1) for the one-student demo; MIN_STUDENTS=3 turns it on.
+const minStudents = Number.parseInt(process.env.MIN_STUDENTS ?? "", 10);
+export const MIN_STUDENTS = Number.isInteger(minStudents) && minStudents >= 1 ? minStudents : 1;
 // Timeline bucket width. Flags are sparse, so three students rarely flag within the
 // same 30 seconds; five minutes is a realistic cluster window.
 export const BUCKET_MINUTES = 5;
@@ -33,6 +46,8 @@ export const MESSAGES = {
 
 const invalid = (message) => new StoreError("invalid", message);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export const isId = (value) => typeof value === "string" && UUID.test(value);
 
 /** Postgres returns UUIDs lower-case, so both stores do. */
 export function requireId(id, name) {

@@ -27,11 +27,13 @@ CREATE TABLE users (
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Students join by code when starting a lecture; the dashboard opens by code.
--- Codes are stored upper-case so "bio101" and "BIO101" are the same class.
+-- Students join by code (the lecturer's ?lecture=CODE link); the dashboard opens by
+-- code. Codes are stored upper-case so "lec-4f2k" and "LEC-4F2K" are the same class.
+-- The lecturer dashboard makes up codes without an account, so the first use of a
+-- code creates its class with no lecturer and the code as its title.
 CREATE TABLE classes (
   id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-  lecturer_id UUID        NOT NULL REFERENCES users (id),
+  lecturer_id UUID        REFERENCES users (id),
   title       TEXT        NOT NULL,
   code        TEXT        NOT NULL UNIQUE CHECK (code = upper(code) AND code <> ''),
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -67,12 +69,12 @@ CREATE TABLE flags (
   id            BIGSERIAL   PRIMARY KEY,
   session_id    UUID        NOT NULL REFERENCES lectures (id) ON DELETE CASCADE,
   type          TEXT        NOT NULL
-                  CHECK (type IN ('catch_up', 'confusing', 'real_world', 'worked_example')),
+                  CHECK (type IN ('catch_up', 'confusing', 'real_world', 'worked_example', 'check_thinking', 'why_it_matters')),
   slide_index   INT         NOT NULL DEFAULT -1 CHECK (slide_index >= -1),  -- 0-based; -1 = unknown
   -- Where selected_text came from. Only 'slide' text is the lecturer's own words and
   -- safe to show verbatim; 'notes' text is the student's writing and is treated like
-  -- student_text.
-  source        TEXT        CHECK (source IN ('slide', 'notes')),
+  -- student_text. 'transcript' is a Catch me up.
+  source        TEXT        CHECK (source IN ('slide', 'notes', 'transcript')),
   selected_text TEXT,
   student_text  TEXT,       -- never shown to a lecturer unparaphrased
   ai_answer     TEXT,       -- restates the question, so same rule as student_text

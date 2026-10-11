@@ -6,6 +6,7 @@ import {
     StoreError,
     asJson,
     dateOf,
+    lectureDateOf,
     normalizeCode,
     optionalText,
     requireFlagType,
@@ -86,10 +87,14 @@ const toSegment = (row) => ({
     text: row.text,
 });
 
-/** Anonymous users: the client makes the id and keeps it in localStorage. */
-export async function ensureUser(userId) {
+/** Anonymous users, by an id the server or client made. A name, when given, is kept. */
+export async function ensureUser(userId, { name } = {}) {
     const id = requireId(userId, "userId");
-    await run("INSERT INTO users (id) VALUES ($1) ON CONFLICT (id) DO NOTHING", [id]);
+    await run(
+        `INSERT INTO users (id, name) VALUES ($1, $2)
+         ON CONFLICT (id) DO UPDATE SET name = COALESCE(EXCLUDED.name, users.name)`,
+        [id, optionalText(name)],
+    );
     return { id };
 }
 
@@ -115,7 +120,7 @@ export async function findClassByCode(code) {
 }
 
 /** A blank class code means independent study; an unknown one is an error. */
-export async function startLecture({ studentId, classCode, title, filename, deckHash, startedAt } = {}) {
+export async function startLecture({ studentId, studentName, classCode, title, filename, deckHash, startedAt } = {}) {
     const student = requireId(studentId, "studentId");
     let classId = null;
     if (normalizeCode(classCode)) {
@@ -124,7 +129,7 @@ export async function startLecture({ studentId, classCode, title, filename, deck
         classId = found.id;
     }
 
-    await ensureUser(student);
+    await ensureUser(student, { name: studentName });
     const { rows } = await run(
         `INSERT INTO lectures (student_id, class_id, title, filename, deck_hash, started_at)
          VALUES ($1, $2, $3, $4, $5, COALESCE($6::timestamptz, NOW())) RETURNING *`,
@@ -152,6 +157,9 @@ export async function updateLecture(lectureId, changes = {}) {
         sets.push(`${column} = $${params.length}`);
     };
     if (changes.title !== undefined) set("title", optionalText(changes.title));
+    if (changes.filename !== undefined) set("filename", optionalText(changes.filename));
+    // Server-computed only (e.g. finish time minus the lecture's length); lecture_date follows.
+    if (changes.startedAt !== undefined) set("started_at", dateOf(changes.startedAt, "startedAt"));
     if (changes.endedAt !== undefined) {
         set("ended_at", changes.endedAt === null ? null : dateOf(changes.endedAt, "endedAt"));
     }
@@ -400,4 +408,173 @@ export async function studentQuestions(classId, lectureDate, slideIndex) {
         [requireId(classId, "classId"), requireLectureDate(lectureDate), slideIndexOf(slideIndex), MIN_STUDENTS],
     );
     return rows.map((row) => row.student_text);
+}
+
+// ── Lecture-code flow (the ?lecture=CODE dashboard) ──────────────────────────
+// The lecturer dashboard makes up a code; students who open its link flag under it.
+// There's no explicit "start lecture": the first flag or transcript line from a
+// student under a code creates their lecture for the day.
+
+/** The class for a code, created on first use (no lecturer, code as title). */
+async function ensureClass(code) {
+    await run("INSERT INTO classes (title, code) VALUES ($1, $1) ON CONFLICT (code) DO NOTHING", [code]);
+    return findClassByCode(code);
+}
+
+/**
+ * This student's lecture under this code today (course timezone), created if it
+ * doesn't exist yet. A blank code means a private lecture with no class.
+ */
+export async function ensureLecture({ studentId, classCode, startedAt } = {}) {
+    const student = requireId(studentId, "studentId");
+    const at = dateOf(startedAt, "startedAt");
+    const code = normalizeCode(classCode);
+    const classId = code ? (await ensureClass(code)).id : null;
+
+    await ensureUser(student);
+    const existing = await run(
+        `SELECT * FROM lectures
+         WHERE student_id = $1 AND class_id IS NOT DISTINCT FROM $2 AND lecture_date = $3
+         ORDER BY started_at DESC, id DESC
+         LIMIT 1`,
+        [student, classId, lectureDateOf(at)],
+    );
+    if (existing.rows[0]) return toLecture(existing.rows[0]);
+
+    const { rows } = await run(
+        "INSERT INTO lectures (student_id, class_id, started_at) VALUES ($1, $2, $3) RETURNING *",
+        [student, classId, at],
+    );
+    return toLecture(rows[0]);
+}
+
+// askedText() from shared.js in SQL: the typed question, else highlighted text that
+// isn't the "Highlighted area on slide N" placeholder.
+const ASKED_TEXT = `COALESCE(
+    student_text,
+    CASE WHEN selected_text ~ '^Highlighted area on slide [0-9]+$' THEN NULL ELSE selected_text END
+)`;
+
+/**
+ * A code's flags, keeping only slide/type groups that MIN_STUDENTS different
+ * students flagged. Uses $1 = code, $2 = MIN_STUDENTS.
+ */
+const GATED_CODE_FLAGS = `
+  room AS (
+    SELECT l.id, l.student_id FROM lectures l
+    JOIN classes c ON c.id = l.class_id
+    WHERE c.code = $1
+  ),
+  coded AS (
+    SELECT f.*, r.student_id FROM flags f
+    JOIN room r ON r.id = f.session_id
+    WHERE f.slide_index >= 0
+  ),
+  shown AS (
+    SELECT slide_index, type FROM coded
+    GROUP BY slide_index, type
+    HAVING count(DISTINCT student_id) >= $2
+  ),
+  gated AS (
+    SELECT coded.* FROM coded JOIN shown USING (slide_index, type)
+  )`;
+
+/**
+ * What the lecturer dashboard gets for a code: type, slide and time of each flag,
+ * and whether it came with a question. No text, ids or answers. Flags in a slide
+ * and type that fewer than MIN_STUDENTS students used are left out.
+ */
+export async function dashboardFlags(classCode) {
+    const { rows } = await run(
+        `WITH ${GATED_CODE_FLAGS}
+         SELECT type, slide_index, received_at, ${ASKED_TEXT} IS NOT NULL AS has_question
+         FROM gated
+         ORDER BY received_at, id`,
+        [normalizeCode(classCode), MIN_STUDENTS],
+    );
+    return rows.map((row) => ({
+        type: row.type,
+        slideIndex: row.slide_index,
+        receivedAt: iso(row.received_at),
+        hasQuestion: row.has_question,
+    }));
+}
+
+/**
+ * RAW questions from the same gated flags, oldest first, for the server to
+ * summarise and paraphrase. Never send these to a lecturer as they are.
+ */
+export async function dashboardQuestions(classCode) {
+    const { rows } = await run(
+        `WITH ${GATED_CODE_FLAGS}
+         SELECT type, slide_index, ${ASKED_TEXT} AS asked FROM gated
+         WHERE ${ASKED_TEXT} IS NOT NULL
+         ORDER BY received_at, id`,
+        [normalizeCode(classCode), MIN_STUDENTS],
+    );
+    return rows.map((row) => ({ type: row.type, slideIndex: row.slide_index, text: row.asked }));
+}
+
+/** Deletes every lecture (and so every flag and transcript) under a code. Keeps the class. */
+export async function resetClass(classCode) {
+    await run(
+        "DELETE FROM lectures WHERE class_id = (SELECT id FROM classes WHERE code = $1)",
+        [normalizeCode(classCode)],
+    );
+}
+
+/** Checks Postgres is reachable and the schema is loaded, with a fix in the message. */
+export async function ready() {
+    try {
+        await query("SELECT 1 FROM flags LIMIT 1");
+    } catch (error) {
+        const fix = error.code === "42P01"
+            ? "The tables are missing: run npm run db:reset."
+            : "Is Postgres running? brew services start postgresql@16";
+        throw new Error(`Postgres isn't ready (${error.message}). ${fix} Or set USE_MEMORY=1.`);
+    }
+}
+
+/** Classes a lecturer created, newest first. */
+export async function listClasses(lecturerId) {
+    const lecturer = requireId(lecturerId, "lecturerId");
+    const { rows } = await run(
+        "SELECT * FROM classes WHERE lecturer_id = $1 ORDER BY created_at DESC, id DESC",
+        [lecturer],
+    );
+    return rows.map(toClass);
+}
+
+/** Student lectures in a lecturer's classes, newest first. For the lecturer's home page. */
+export async function listClassLectures(lecturerId) {
+    const lecturer = requireId(lecturerId, "lecturerId");
+    const { rows } = await run(
+        `SELECT l.id, l.title, l.filename, l.started_at, l.ended_at, l.lecture_date,
+                c.title AS class_title, u.name AS student_name,
+                (SELECT count(*) FROM flags f WHERE f.session_id = l.id)::int AS flag_count
+         FROM lectures l
+         JOIN classes c ON c.id = l.class_id
+         JOIN users u ON u.id = l.student_id
+         WHERE c.lecturer_id = $1
+         ORDER BY l.started_at DESC, l.id DESC`,
+        [lecturer],
+    );
+    return rows.map((row) => ({
+        id: row.id,
+        title: row.title,
+        filename: row.filename,
+        startedAt: iso(row.started_at),
+        endedAt: iso(row.ended_at),
+        lectureDate: row.lecture_date,
+        classTitle: row.class_title,
+        studentName: row.student_name,
+        flagCount: row.flag_count,
+    }));
+}
+
+/** One lecture's flags, oldest first. */
+export async function lectureFlags(lectureId) {
+    const id = requireId(lectureId, "lectureId");
+    const { rows } = await run("SELECT * FROM flags WHERE session_id = $1 ORDER BY received_at, id", [id]);
+    return rows.map(toFlag);
 }

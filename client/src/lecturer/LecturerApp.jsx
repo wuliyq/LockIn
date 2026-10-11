@@ -14,8 +14,8 @@ import './Lecturer.css'
  * Only anonymised counts reach this view; student questions are summarised on the
  * server (paraphrased, never quoted).
  */
-export default function LecturerApp({ user, onLogout }) {
-  const [code, setCode] = useLectureCode()
+export default function LecturerApp({ user, onLogout, code: classCode = null, onBack = null }) {
+  const [code, setCode] = useLectureCode(classCode)
   const route = useHashRoute()
   const [file, setFile] = useState(null) // the lecture PDF, for thumbnails and slide titles
   const [deck, setDeck] = useState(null)
@@ -47,7 +47,7 @@ export default function LecturerApp({ user, onLogout }) {
 
   return (
     <div className="theme-sage lecturer">
-      <Header code={code} setCode={setCode} dash={dash} onLoadSample={loadSample} user={user} onLogout={onLogout} />
+      <Header code={code} setCode={setCode} dash={dash} onLoadSample={loadSample} user={user} onLogout={onLogout} onBack={onBack} />
       <main className="lecturer__main">
         {route.page === 'type' && TYPE_META[route.type] ? (
           <TypeDetail {...ctx} type={route.type} />
@@ -61,7 +61,7 @@ export default function LecturerApp({ user, onLogout }) {
   )
 }
 
-function Header({ code, setCode, dash, onLoadSample, user, onLogout }) {
+function Header({ code, setCode, dash, onLoadSample, user, onLogout, onBack }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(code)
   const [copied, setCopied] = useState(false)
@@ -82,6 +82,11 @@ function Header({ code, setCode, dash, onLoadSample, user, onLogout }) {
 
   return (
     <header className="lect-header">
+      {onBack && (
+        <button type="button" className="lect-btn lect-btn--small lect-btn--quiet" onClick={onBack}>
+          ← Classes
+        </button>
+      )}
       <span className="lect-logo">
         <LockIcon /> LockIN <span className="lect-header__role">Lecturer</span>
       </span>
