@@ -19,14 +19,35 @@ import './App.css'
 
 const AI_ICONS = { catchup: ZapIcon, example: LightbulbIcon, check: HelpIcon, why: TargetIcon }
 
-export default function App() {
-  const li = useLockIn()
+/**
+ * Student workspace. Opened from the lecture home page it gets a per-lecture
+ * `storageScope` and an `onFinish(snapshot)` that saves the lecture and goes home;
+ * opened on its own it behaves as before, with no Finish button.
+ */
+export default function App({ storageScope = null, onFinish = null }) {
+  const li = useLockIn({ storageScope })
   const [pendingSelection, setPendingSelection] = useState(null)
+  const [finishing, setFinishing] = useState(false)
+  const [finishError, setFinishError] = useState('')
   const { bodyRef, slideWidth, resizing, beginResize } = usePanelResize()
 
   const startFocusSession = async () => {
     li.startSession()
     if (!li.listening && li.transcriptStatus !== 'connecting') await li.toggleListen()
+  }
+
+  // Stop recording (keeping its last words), save notes, flags and catch-ups, go home.
+  // If saving fails the lecture stays open with the error, so nothing is lost.
+  const finishLecture = async () => {
+    setFinishing(true)
+    setFinishError('')
+    try {
+      await li.stopListening()
+      await onFinish(li.lectureSnapshot())
+    } catch (error) {
+      setFinishError(error?.message || 'This lecture could not be saved. Try again.')
+      setFinishing(false)
+    }
   }
 
   const addSlideHighlight = (rect) => {
@@ -57,7 +78,23 @@ export default function App() {
               Start session
             </button>
           )}
+          {onFinish && (
+            <button
+              type="button"
+              className="app__finish"
+              onClick={finishLecture}
+              disabled={finishing || li.transcriptStatus === 'connecting'}
+              title="Save this lecture's notes and flags, then go back to your lectures"
+            >
+              {finishing ? 'Saving…' : 'Finish lecture'}
+            </button>
+          )}
         </div>
+        {finishError && (
+          <p className="app__finish-error" role="alert">
+            {finishError}
+          </p>
+        )}
       </header>
 
       <div

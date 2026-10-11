@@ -42,22 +42,28 @@ const HELPER_PROMPTS = {
 /**
  * Workspace state for the lecture view. Notes and local flag history persist
  * per PDF, while transcript segments and dashboard flags are sent to Express.
+ *
+ * `storageScope` keeps one lecture's notes, flags and catch-ups apart from every
+ * other lecture's (the lecture home page starts each lecture with its own scope).
+ * Without it, the workspace keeps the shared per-PDF storage it always had.
  */
-export function useLockIn() {
+export function useLockIn({ storageScope = null } = {}) {
+  const stored = (name) => lectureStorageKey(storageScope, name)
   const [deck, setDeck] = useState(null)
   const [reading, setReading] = useState(false)
   const [current, setCurrent] = useState(0)
-  const [notesByDeck, setNotesByDeck] = useStored('lockin.notes', {})
-  const [confusions, setConfusions] = useStored('lockin.confusions', [])
-  const [highlightsByDeck, setHighlightsByDeck] = useStored('lockin.slideHighlights', {})
+  const [notesByDeck, setNotesByDeck] = useStored(stored('notes'), {})
+  const [confusions, setConfusions] = useStored(stored('confusions'), [])
+  const [highlightsByDeck, setHighlightsByDeck] = useStored(stored('slideHighlights'), {})
   const [savedAt, setSavedAt] = useState('')
   const [ai, setAi] = useState(null)
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState('')
   const sessionId = useSessionId()
-  const [sessionActive, setSessionActive] = useStored('lockin.sessionActive', false)
-  const [sessionStartedAt, setSessionStartedAt] = useStored('lockin.sessionStartedAt', null)
+  const [sessionActive, setSessionActive] = useStored(stored('sessionActive'), false)
+  const [sessionStartedAt, setSessionStartedAt] = useStored(stored('sessionStartedAt'), null)
   const [sessionSeconds, setSessionSeconds] = useState(0)
+  const [catchUps, setCatchUps] = useStored(stored('catchUps'), [])
 
   const transcriptState = useTranscript({ sessionId, slideNumber: current + 1 })
   const deckKey = deck?.filename ?? ''
@@ -140,6 +146,10 @@ export function useLockIn() {
           },
         })
         setAi({ kind, slide, text: data.summary.join('\n') })
+        setCatchUps((items) => [
+          ...items,
+          { id: crypto.randomUUID(), timestamp: new Date().toISOString(), slide, summary: data.summary },
+        ])
       } else {
         const data = await apiRequest('/api/confusion', {
           method: 'POST',
@@ -180,6 +190,8 @@ export function useLockIn() {
       slide: current,
       flagType,
       text: studentComment.trim() || selectedText,
+      selectedText,
+      studentComment: studentComment.trim(),
       source: selection.source ?? 'slide',
       highlightId: selection.highlightId ?? null,
       createdAt: new Date().toISOString(),
@@ -237,7 +249,25 @@ export function useLockIn() {
     return true
   }
 
+  /**
+   * Everything worth keeping from this lecture, in the account API's LectureSnapshot
+   * shape (see docs/account-api-contract.md): zero-based slides and note keys.
+   */
+  const lectureSnapshot = () => {
+    const deckFlags = confusions.filter((flag) => flag.filename === deckKey)
+    return {
+      title: lectureTitle(deck),
+      filename: deckKey,
+      seconds: sessionStartedAt ? Math.floor((Date.now() - sessionStartedAt) / 1000) : 0,
+      slides: deck?.slides ?? [],
+      notes: Object.fromEntries(Object.entries(notesByDeck[deckKey] ?? {}).filter(([, text]) => text?.trim())),
+      flags: deckFlags.map((flag) => ({ ...flag, sessionId })),
+      catchUps,
+    }
+  }
+
   return {
+    lectureSnapshot,
     deck,
     reading,
     current,
@@ -350,7 +380,15 @@ function useTranscript({ sessionId, slideNumber }) {
     ...(liveText ? [liveText] : []),
   ]
 
+  /** Stop recording if it's on, saving the last stretch of transcript first. */
+  const stopListening = async () => {
+    if (status !== 'recording') return
+    sttRef.current?.flush()
+    await sttRef.current?.stop()
+  }
+
   return {
+    stopListening,
     listening: status === 'recording',
     transcriptStatus: status,
     transcriptError,
@@ -415,4 +453,27 @@ function useStored(key, initial) {
     }
   }, [key, value])
   return [value, setValue]
+}
+
+function lectureStorageKey(scope, name) {
+  return scope ? `lockin.lecture.${scope}.${name}` : `lockin.${name}`
+}
+
+/** Forget a finished lecture's local copy once it's safely saved to the lecture history. */
+export function clearLectureStorage(scope) {
+  if (!scope) return
+  for (const name of ['notes', 'confusions', 'slideHighlights', 'sessionActive', 'sessionStartedAt', 'catchUps']) {
+    try {
+      localStorage.removeItem(lectureStorageKey(scope, name))
+    } catch {
+      // storage unavailable: nothing was kept there anyway
+    }
+  }
+}
+
+/** A readable lecture title: the deck's first line of text, else its filename, else a fallback. */
+function lectureTitle(deck) {
+  const firstLine = deck?.slides.find((slide) => slide.text?.trim())?.text.split('\n', 1)[0].trim()
+  const fromFile = deck?.filename?.replace(/\.pdf$/i, '').replace(/[-_]+/g, ' ').trim()
+  return (firstLine || fromFile || 'Untitled lecture').slice(0, 120)
 }
