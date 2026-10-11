@@ -87,13 +87,13 @@ export function useLockIn({ storageScope = null } = {}) {
   const [ai, setAi] = useState(null)
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState('')
-  const sessionId = useSessionId()
+  const { sessionId, studentId } = useSessionId()
   const [sessionActive, setSessionActive] = useStored(stored('sessionActive'), false)
   const [sessionStartedAt, setSessionStartedAt] = useStored(stored('sessionStartedAt'), null)
   const [sessionSeconds, setSessionSeconds] = useState(0)
   const [catchUps, setCatchUps] = useStored(stored('catchUps'), [])
 
-  const transcriptState = useTranscript({ sessionId, slideNumber: current + 1 })
+  const transcriptState = useTranscript({ sessionId, studentId, slideNumber: current + 1 })
   const nudge = useFocusNudge({ active: Boolean(deck) })
   const { markActive } = nudge
   const deckKey = deck?.filename ?? ''
@@ -186,6 +186,7 @@ export function useLockIn({ storageScope = null } = {}) {
         method: 'POST',
         body: {
           sessionId,
+          studentId,
           slideNumber: current + 1,
           recentTranscript,
           slideText,
@@ -214,6 +215,7 @@ export function useLockIn({ storageScope = null } = {}) {
           method: 'POST',
           body: {
             sessionId,
+            studentId,
             slideNumber: slide + 1,
             flagType: 'catch_up',
             selectedText: '',
@@ -292,6 +294,7 @@ export function useLockIn({ storageScope = null } = {}) {
         method: 'POST',
         body: {
           sessionId,
+          studentId,
           slideNumber: current + 1,
           flagType: id,
           selectedText: highlighted,
@@ -367,7 +370,7 @@ export function useLockIn({ storageScope = null } = {}) {
 }
 
 /** Real-time ElevenLabs Scribe transcript, grouped into slide-linked segments. */
-function useTranscript({ sessionId, slideNumber }) {
+function useTranscript({ sessionId, studentId, slideNumber }) {
   const [status, setStatus] = useState('idle')
   const [savedSegments, setSavedSegments] = useState([])
   const [liveText, setLiveText] = useState('')
@@ -393,7 +396,7 @@ function useTranscript({ sessionId, slideNumber }) {
     try {
       await apiRequest('/api/transcript', {
         method: 'POST',
-        body: { sessionId, ...segment },
+        body: { sessionId, studentId, ...segment },
       })
     } catch (error) {
       setTranscriptError(`Recording is running, but this transcript segment was not saved for catch-up: ${error.message}`)
@@ -487,23 +490,32 @@ async function apiRequest(path, { method = 'GET', body } = {}) {
  * the link (?lecture=CSC422-L7, shared by the lecturer) puts the whole class in one
  * session so the lecturer dashboard can see everyone; without one, the browser
  * keeps its own private session.
+ *
+ * studentId is this browser's anonymous id, sent alongside the code so the server
+ * can count distinct students (the dashboard hides anything fewer than 3 flagged).
+ * It never identifies a person and is never shown to the lecturer.
  */
 function useSessionId() {
-  const [sessionId] = useState(() => {
+  const [ids] = useState(() => {
+    const studentId = browserId()
     const code = new URLSearchParams(window.location.search).get('lecture')?.trim()
-    if (code) return code.toUpperCase()
-    const key = 'lockin.sessionId'
-    try {
-      const existing = localStorage.getItem(key)
-      if (existing) return existing
-      const created = crypto.randomUUID()
-      localStorage.setItem(key, created)
-      return created
-    } catch {
-      return crypto.randomUUID()
-    }
+    return { sessionId: code ? code.toUpperCase() : studentId, studentId }
   })
-  return sessionId
+  return ids
+}
+
+/** A random id kept in localStorage, so the same browser is the same anonymous student. */
+function browserId() {
+  const key = 'lockin.sessionId'
+  try {
+    const existing = localStorage.getItem(key)
+    if (existing) return existing
+    const created = crypto.randomUUID()
+    localStorage.setItem(key, created)
+    return created
+  } catch {
+    return crypto.randomUUID()
+  }
 }
 
 /** useState that survives reloads. Falls back to memory if storage is unavailable. */

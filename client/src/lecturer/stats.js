@@ -13,8 +13,10 @@ export function anonymise(rawFlags) {
       type: normalizeType(f.flagType),
       slide: Math.round(Number(f.slideNumber)),
       time: Date.parse(f.timestamp),
-      // Did the student highlight text (or, in older flags, type a question)?
-      hasQuestion: Boolean(f.studentComment?.trim() || (f.selectedText?.trim() && !/^Highlighted area on slide \d+$/.test(f.selectedText.trim()))),
+      // Did the student highlight text or type a question? The server says so in
+      // hasQuestion; older data may still carry the text itself.
+      hasQuestion: f.hasQuestion === true ||
+        Boolean(f.studentComment?.trim() || (f.selectedText?.trim() && !/^Highlighted area on slide \d+$/.test(f.selectedText.trim()))),
     }))
     .filter((f) => Number.isFinite(f.slide) && f.slide >= 1)
 }
