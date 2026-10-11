@@ -442,8 +442,48 @@
   margin-top: 0.5rem;
 }
 
-.notes__selection-actions .chip {
-  background: var(--card);
+.notes__selection-actions .flag-fill {
+  padding: 0.4rem 0.7rem;
+  font-size: 0.8rem;
+}
+
+.notes__selection-actions .flag-fill .icon {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
+/* A flag choice after highlighting: a block in the type's own color. */
+.flag-fill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid color-mix(in oklab, var(--type-color, var(--flag)) 45%, transparent);
+  border-radius: 0.4rem;
+  /* see-through: a 20% tint of the type color over whatever is behind it */
+  background: color-mix(in oklab, var(--type-color, var(--flag)) 20%, transparent);
+  color: var(--type-text, var(--foreground));
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  transition: background-color 0.15s, box-shadow 0.15s, transform 0.1s;
+}
+
+.flag-fill:not(:disabled):hover {
+  background: color-mix(in oklab, var(--type-color, var(--flag)) 32%, transparent);
+  box-shadow: 0 2px 8px -3px color-mix(in oklab, var(--type-color, var(--flag)) 60%, transparent);
+}
+
+.flag-fill:not(:disabled):active {
+  transform: translateY(1px);
+}
+
+.flag-fill:focus-visible {
+  outline: 2px solid var(--foreground);
+  outline-offset: 2px;
+}
+
+.flag-fill:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 /* --- Recording line under the slides ------------------------------------------ */
@@ -492,6 +532,16 @@
   border-radius: 50%;
   background: var(--flag);
   animation: rec-blink 1.4s ease-in-out infinite;
+}
+
+.recording-line__catch-up {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.75rem;
+}
+
+.recording-line__catch-up .icon {
+  width: 0.85rem;
+  height: 0.85rem;
 }
 
 .recording-line__error {
@@ -621,21 +671,10 @@
 }
 
 .selection-flagger button {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.35rem 0.55rem;
-  border-radius: 0.55rem;
-  background: var(--muted);
-  color: var(--foreground);
-  font-size: 0.7rem;
-  font-weight: 700;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.72rem;
 }
 
-.selection-flagger button:hover {
-  background: var(--cue);
-  color: var(--cue-foreground);
-}
 
 .flag-card small {
   color: var(--muted-foreground);

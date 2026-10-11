@@ -14,14 +14,13 @@ import {
   XIcon,
   ZapIcon,
 } from './icons'
-import { FLAG_TYPES, flagColor, flagTypeId, useLockIn } from './lockin/useLockIn'
+import { FLAG_ACTIONS, FLAG_TYPES, flagColor, flagFillStyle, flagTypeId, useLockIn } from './lockin/useLockIn'
 import SelectionFlagger from './lockin/SelectionFlagger'
 import { NUDGE_MINUTES } from './lockin/useFocusNudge'
 import { SlidePanel } from './slides'
 import './App.css'
 
 const FLAG_ICONS = {
-  catch_up: ZapIcon,
   example: LightbulbIcon,
   why_it_matters: TargetIcon,
   confusing: HelpIcon,
@@ -167,7 +166,6 @@ export default function App({ storageScope = null, onFinish = null }) {
         onStartSession={startFocusSession}
         pendingSelection={pendingSelection}
         clearSelection={clearSelection}
-        discardSelection={discardSelection}
       />
     </div>
   )
@@ -231,11 +229,10 @@ function Notes({ li, pendingSelection, onSelection, clearSelection, discardSelec
             <FlagButtons
               li={li}
               className="notes__selection-actions"
+              filled
               onPick={(flagType) => {
                 li.submitFlag(flagType, pendingSelection).then((sent) => { if (sent) setShowFlags(true) })
-                // Catch me up is about the recording, so a dragged area isn't kept for it.
-                if (flagType === 'catch_up') discardSelection()
-                else clearSelection()
+                clearSelection()
               }}
             />
           </div>
@@ -315,10 +312,10 @@ function FlagHistory({ flags, onGoToSlide }) {
 }
 
 /** The five flag actions as chips. Each sends a flag to the lecturer and gets an AI answer. */
-function FlagButtons({ li, onPick, className = '' }) {
+function FlagButtons({ li, onPick, className = '', filled = false }) {
   return (
     <div className={`flag-buttons ${className}`} role="group" aria-label="Flag as">
-      {Object.entries(FLAG_TYPES).map(([flagType, type]) => {
+      {FLAG_ACTIONS.map(([flagType, type]) => {
         const Icon = FLAG_ICONS[flagType] ?? FlagIcon
         return (
           <button
@@ -326,8 +323,8 @@ function FlagButtons({ li, onPick, className = '' }) {
             type="button"
             disabled={!li.deck || li.aiLoading}
             onClick={() => onPick(flagType)}
-            className={`chip flag-chip ${li.ai?.kind === flagType ? 'is-active' : ''}`}
-            style={{ '--type-color': flagColor(flagType) }}
+            className={filled ? 'flag-fill' : `chip flag-chip ${li.ai?.kind === flagType ? 'is-active' : ''}`}
+            style={filled ? flagFillStyle(flagType) : { '--type-color': flagColor(flagType) }}
           >
             <Icon /> {type.label}
           </button>
@@ -337,7 +334,10 @@ function FlagButtons({ li, onPick, className = '' }) {
   )
 }
 
-/** A quiet line under the slides: start or stop the lecture recording that powers Catch me up. */
+/**
+ * A quiet line under the slides: start or stop the lecture recording, and the
+ * Catch me up button that summarises the most recent part of it.
+ */
 function RecordingLine({ li }) {
   const connecting = li.transcriptStatus === 'connecting'
   return (
@@ -351,12 +351,22 @@ function RecordingLine({ li }) {
         {li.listening ? <MicOffIcon /> : <MicIcon />}
         {connecting ? 'Connecting to the microphone…' : li.listening ? 'Recording the lecture · stop' : 'Record the lecture for catch-ups'}
       </button>
+      <button
+        type="button"
+        className="flag-fill recording-line__catch-up"
+        style={flagFillStyle('catch_up')}
+        onClick={() => li.submitFlag('catch_up')}
+        disabled={!li.deck || li.aiLoading}
+        title="Summarise the last few minutes of the recording"
+      >
+        <ZapIcon /> Catch me up
+      </button>
       {li.transcriptError && <span className="recording-line__error">{li.transcriptError}</span>}
     </div>
   )
 }
 
-function Helper({ li, onStartSession, pendingSelection, clearSelection, discardSelection }) {
+function Helper({ li, onStartSession, pendingSelection, clearSelection }) {
   const [open, setOpen] = useState(false)
   const { nudge } = li
 
@@ -411,8 +421,7 @@ function Helper({ li, onStartSession, pendingSelection, clearSelection, discardS
               className="helper__flag-buttons"
               onPick={(flagType) => {
                 li.submitFlag(flagType, pendingSelection ?? {})
-                if (flagType === 'catch_up') discardSelection()
-                else clearSelection()
+                clearSelection()
               }}
             />
           </div>
