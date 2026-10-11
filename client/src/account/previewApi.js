@@ -1,3 +1,5 @@
+import { request as backendRequest } from './api.js'
+
 // Explicit UI preview only. Never used as a fallback for a failed real login.
 // No passwords or real-account data are stored here.
 const KEY = 'lockin.ui-preview.v1'
@@ -40,11 +42,14 @@ export const previewApi = {
   listClasses: async () => ({ classes: read().classes }),
   createClass: async (title) => { const classroom = { id: crypto.randomUUID(), title, code: `DEMO${read().classes.length + 1}` }; read().classes.push(classroom); save(); return { classroom } },
   logout: async () => ({ ok: true }),
-  request: async (path) => {
+  request: async (path, options) => {
     if (path === '/api/confusion') return { answer: 'Preview answer: this is where a short explanation grounded in your lecture will appear once the AI service is connected.' }
     if (path === '/api/flags') return { flag: { id: crypto.randomUUID() } }
     if (path === '/api/catch-up') return { summary: ['Preview summary: key points from the last two minutes will appear here.'] }
-    throw new Error('Live recording is not available in UI preview. Sign in after the backend is connected.')
+    // Recording does not require an account. These routes only need the running
+    // backend so it can issue an ElevenLabs token and save transcript windows.
+    if (path === '/api/stt-token' || path === '/api/transcript') return backendRequest(path, options)
+    throw new Error('This preview action is not available yet.')
   },
 }
 

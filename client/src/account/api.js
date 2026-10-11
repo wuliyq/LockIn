@@ -1,4 +1,4 @@
-const BASE = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
+const BASE = (import.meta.env?.VITE_API_URL || '').replace(/\/$/, '')
 
 export async function request(path, { method = 'GET', body, signal } = {}) {
   let response
