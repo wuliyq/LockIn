@@ -3,7 +3,7 @@
  * and rejects exactly what Postgres's constraints do, with the same errors.
  */
 
-export const FLAG_TYPES = ["catch_up", "confusing", "real_world", "worked_example"];
+export const FLAG_TYPES = ["catch_up", "confusing", "real_world", "worked_example", "check_thinking"];
 export const SOURCES = ["slide", "notes"];
 
 // Lecturer views only show a group once this many different students are in it. One
@@ -33,6 +33,8 @@ export const MESSAGES = {
 
 const invalid = (message) => new StoreError("invalid", message);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export const isId = (value) => typeof value === "string" && UUID.test(value);
 
 /** Postgres returns UUIDs lower-case, so both stores do. */
 export function requireId(id, name) {

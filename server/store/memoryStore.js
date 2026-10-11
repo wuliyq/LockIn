@@ -327,3 +327,90 @@ export async function studentQuestions(classId, lectureDate, slideIndex) {
         .sort((a, b) => a.receivedAt.localeCompare(b.receivedAt) || byFlagId(a, b))
         .map((f) => f.studentText);
 }
+
+// ── Lecture-code flow (the ?lecture=CODE dashboard) ──────────────────────────
+// Mirrors pgStore.js: the first flag or transcript line from a student under a
+// code creates their lecture for the day, and the code's class if needed.
+
+function ensureClass(code) {
+    const found = [...classes.values()].find((c) => c.code === code);
+    if (found) return found;
+    const created = { id: crypto.randomUUID(), lecturerId: null, title: code, code, createdAt: now() };
+    classes.set(created.id, created);
+    return created;
+}
+
+export async function ensureLecture({ studentId, classCode, startedAt } = {}) {
+    const student = requireId(studentId, "studentId");
+    const at = dateOf(startedAt, "startedAt");
+    const code = normalizeCode(classCode);
+    const classId = code ? ensureClass(code).id : null;
+
+    await ensureUser(student);
+    const date = lectureDateOf(at);
+    const [existing] = [...lectures.values()]
+        .filter((l) => l.studentId === student && l.classId === classId && l.lectureDate === date)
+        .sort(byStartDesc);
+    if (existing) return copy(existing);
+
+    const lecture = {
+        id: crypto.randomUUID(),
+        studentId: student,
+        classId,
+        title: null,
+        filename: null,
+        deckHash: null,
+        startedAt: at.toISOString(),
+        endedAt: null,
+        lectureDate: date,
+        snapshot: null,
+        updatedAt: at.toISOString(),
+    };
+    lectures.set(lecture.id, lecture);
+    return copy(lecture);
+}
+
+/** A code's flags, keeping only slide/type groups that MIN_STUDENTS different students flagged. */
+function gatedCodeFlags(classCode) {
+    const code = normalizeCode(classCode);
+    const cls = [...classes.values()].find((c) => c.code === code);
+    if (!cls) return [];
+    const coded = flagsOf([...lectures.values()].filter((l) => l.classId === cls.id))
+        .filter((f) => f.slideIndex >= 0);
+    const shown = new Set(
+        gatedGroups(coded, (f) => [f.slideIndex, f.type]).map(({ row }) => JSON.stringify([row.slideIndex, row.type])),
+    );
+    return coded
+        .filter((f) => shown.has(JSON.stringify([f.slideIndex, f.type])))
+        .sort((a, b) => a.receivedAt.localeCompare(b.receivedAt) || byFlagId(a, b));
+}
+
+export async function dashboardFlags(classCode) {
+    return gatedCodeFlags(classCode).map((f) => ({
+        type: f.type,
+        slideIndex: f.slideIndex,
+        receivedAt: f.receivedAt,
+        hasQuestion: f.studentText !== null,
+    }));
+}
+
+export async function dashboardQuestions(classCode) {
+    return gatedCodeFlags(classCode)
+        .filter((f) => f.studentText !== null)
+        .map((f) => ({ type: f.type, slideIndex: f.slideIndex, text: f.studentText }));
+}
+
+export async function resetClass(classCode) {
+    const code = normalizeCode(classCode);
+    const cls = [...classes.values()].find((c) => c.code === code);
+    if (!cls) return;
+    const doomed = new Set([...lectures.values()].filter((l) => l.classId === cls.id).map((l) => l.id));
+    for (const lectureId of doomed) lectures.delete(lectureId);
+    // ON DELETE CASCADE
+    for (const list of [flags, segments]) {
+        for (let i = list.length - 1; i >= 0; i--) if (doomed.has(list[i].sessionId)) list.splice(i, 1);
+    }
+}
+
+/** Always ready; nothing to connect to. */
+export async function ready() {}

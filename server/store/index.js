@@ -28,6 +28,11 @@ export const {
     timeline,
     transcriptWindow,
     studentQuestions,
+    ensureLecture,
+    dashboardFlags,
+    dashboardQuestions,
+    resetClass,
+    ready,
 } = impl;
 
-export { BUCKET_MINUTES, FLAG_TYPES, MIN_STUDENTS, SOURCES, StoreError } from "./shared.js";
+export { BUCKET_MINUTES, FLAG_TYPES, MIN_STUDENTS, SOURCES, StoreError, isId } from "./shared.js";
