@@ -26,7 +26,10 @@ function find(id) {
   if (!lecture) throw new Error('Preview lecture not found.')
   return lecture
 }
-export function previewUser(role) { return { id: `preview-${role}`, name: role === 'student' ? 'Demo student' : 'Demo lecturer', email: '', role, preview: true } }
+export function previewUser(role, name = '') {
+  const fallback = role === 'student' ? 'Demo student' : 'Demo lecturer'
+  return { id: `preview-${role}`, name: name.trim() || fallback, email: '', role, preview: true }
+}
 
 export const previewApi = {
   listLectures: async () => ({ lectures: read().lectures.map(({ snapshot, ...lecture }) => ({ ...lecture, filename: snapshot.filename, seconds: snapshot.seconds, notePages: Object.values(snapshot.notes || {}).filter((note) => note.trim()).length, flagCount: snapshot.flags?.length || 0 })) }),
