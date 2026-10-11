@@ -184,13 +184,6 @@ export const ChevronDownIcon = (p) => (
   </Icon>
 )
 
-export const CircleCheckIcon = (p) => (
-  <Icon {...p}>
-    <circle cx="12" cy="12" r="10" />
-    <path d="m9 12 2 2 4-4" />
-  </Icon>
-)
-
 export const MessageCheckIcon = (p) => (
   <Icon {...p}>
     <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />

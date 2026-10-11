@@ -7,6 +7,7 @@
  */
 
 // [slide, minute range in the lecture, { flagType: [count, ...sample highlighted texts] }]
+// Catch-ups summarise the recording, so they carry no highlighted text here.
 const PLAN = [
   [1, [0, 3], {}],
   [2, [3, 6], { check_thinking: [1, 'Is backprop part of today or next week?'] }],
@@ -20,7 +21,7 @@ const PLAN = [
   }],
   [5, [16, 24], {
     confusing: [7, 'Why do we move opposite the gradient instead of along it?', 'Why the minus sign in the update rule?', 'What does eta multiply exactly?', 'How do we know when to stop repeating?', 'Is w one number or all the weights?', 'Why does going against the gradient reduce loss?', 'What is the arrow in the formula?'],
-    quick_check: [4, 'w_new = w_old - eta * gradient', 'update rule: step against the gradient', 'eta = learning rate, scales each step', 'repeat until the loss stops dropping'],
+    catch_up: [3],
     why_it_matters: [2, 'gradient descent trains almost every ML model', 'same update rule as in neural nets'],
     check_thinking: [2, 'If the gradient is negative we increase w, is that right?', 'So a bigger gradient means a bigger step?'],
   }],
@@ -33,7 +34,7 @@ const PLAN = [
     confusing: [2, 'What is a learning-rate schedule?', 'Why would the loss go up if the step is too big?'],
   }],
   [8, [33, 41], {
-    quick_check: [5, 'mini-batch = average gradient over a small batch', 'one epoch = one pass over all the data', 'SGD uses one example per step', 'batch of 32 means n/32 updates per epoch', 'SGD is noisy but cheap'],
+    catch_up: [4],
     confusing: [3, 'Why is SGD noisy?', 'How does noise help escape minima?', 'What is the difference between an epoch and an iteration?'],
   }],
   [9, [41, 47], {
@@ -66,7 +67,7 @@ export function buildDemoFlags(now = Date.now()) {
           slideNumber: slide,
           flagType,
           // The highlighted text is the query; about a third flag the slide without highlighting.
-          selectedText: rand() < 0.7 ? questions[i % questions.length] : '',
+          selectedText: rand() < 0.7 && questions.length ? questions[i % questions.length] : '',
           studentComment: '',
           aiAnswer: '',
           source: SOURCES[Math.floor(rand() * SOURCES.length)],

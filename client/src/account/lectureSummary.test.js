@@ -29,6 +29,7 @@ test('slide flags and catch-ups go after the slide notes, in time order', () => 
     ],
     catchUps: [{ slide: 1, summary: ['- Big steps overshoot.'], timestamp: '2026-10-10T14:10:00Z' }],
   })
+  // (a catch-up's flag copy is skipped; see the next test)
   assert.equal(section.blocks.length, 1)
   assert.deepEqual(section.blocks[0].additions.map((a) => a.id), ['early', 'catch-up-0', 'late'])
   assert.equal(section.blocks[0].additions[0].comment, 'What is eta?')
@@ -52,4 +53,13 @@ test('older saved flags with only `text` keep their question', () => {
   assert.equal(section.blocks[0].additions[0].comment, 'Why uphill?')
   assert.equal(section.blocks[0].additions[0].label, 'Confusing')
   assert.equal(section.blocks[0].additions[0].quote, 'The gradient')
+})
+
+test('a catch-up appears once, from the catch-up list, not again as a flag', () => {
+  const [section] = buildLectureSummary({
+    notes: { 0: 'Notes.' },
+    flags: [{ id: 'cu-flag', slide: 0, flagType: 'catch_up', aiAnswer: 'Recap.', createdAt: '2026-10-10T14:10:00Z' }],
+    catchUps: [{ id: 'cu', slide: 0, summary: ['Recap.'], timestamp: '2026-10-10T14:10:00Z' }],
+  })
+  assert.deepEqual(section.blocks.flatMap((b) => b.additions.map((a) => a.id)), ['cu'])
 })

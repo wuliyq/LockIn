@@ -8,24 +8,20 @@ import { useFocusNudge } from './useFocusNudge'
  */
 const API_BASE_URL = (import.meta.env.VITE_API_URL ?? 'http://localhost:3001').replace(/\/$/, '')
 
-export const AI_LABELS = {
-  catchup: 'Catch me up',
-}
-
 /**
- * The five ways to flag something, in the order the focus buddy and the highlight
+ * The ways to flag something, in the order the focus buddy and the highlight
  * pop-up show them. Each one is sent to the lecturer (anonymously) and gets a short
  * AI answer. The highlighted text is what the flag is about; with nothing
- * highlighted, the flag is about the current slide.
+ * highlighted, the flag is about the current slide. "Catch me up" instead
+ * summarises the last stretch of the recorded lecture.
  */
 export const FLAG_TYPES = {
+  catch_up: {
+    label: 'Catch me up',
+  },
   example: {
     label: 'Give an example',
     prompt: 'Give one short, concrete example of this idea.',
-  },
-  quick_check: {
-    label: 'Quick check',
-    prompt: 'Give me one quick question to check I understand this, with the answer after it.',
   },
   why_it_matters: {
     label: 'Why it matters',
@@ -138,11 +134,13 @@ export function useLockIn({ storageScope = null } = {}) {
     transcriptExcerpt: transcriptState.transcript.slice(-4).join(' ').slice(-4000),
   })
 
-  /** "Catch me up": a short summary of the last stretch of the live transcript. */
-  const ask = async (kind) => {
-    if (!deck || aiLoading || kind !== 'catchup') return
-
-    markActive()
+  /**
+   * "Catch me up": a short summary of the most recently recorded part of the lecture.
+   * It is always based on the recording, never on highlighted text. It is kept with
+   * the lecture's catch-ups and also sent to the lecturer as a flag, since it marks
+   * a moment the student lost the thread.
+   */
+  const catchUp = async () => {
     setAiLoading(true)
     setAiError('')
     const slide = current
@@ -162,13 +160,44 @@ export function useLockIn({ storageScope = null } = {}) {
           slideText,
         },
       })
-      setAi({ kind, slide, text: data.summary.join('\n') })
-      setCatchUps((items) => [
-        ...items,
-        { id: crypto.randomUUID(), timestamp: new Date().toISOString(), slide, summary: data.summary },
-      ])
+      const text = data.summary.join('\n')
+      const createdAt = new Date().toISOString()
+      setAi({ kind: 'catch_up', label: FLAG_TYPES.catch_up.label, slide, text })
+      setCatchUps((items) => [...items, { id: crypto.randomUUID(), timestamp: createdAt, slide, summary: data.summary }])
+      setConfusions((list) => [...list, {
+        id: crypto.randomUUID(),
+        filename: deckKey,
+        slide,
+        flagType: 'catch_up',
+        text: `Caught up on slide ${slide + 1}`,
+        selectedText: '',
+        studentComment: '',
+        aiAnswer: text,
+        source: 'transcript',
+        highlightId: null,
+        createdAt,
+      }])
+
+      try {
+        await apiRequest('/api/flags', {
+          method: 'POST',
+          body: {
+            sessionId,
+            slideNumber: slide + 1,
+            flagType: 'catch_up',
+            selectedText: '',
+            studentComment: '',
+            aiAnswer: text,
+            source: 'transcript',
+          },
+        })
+      } catch (error) {
+        setAiError(`Your catch-up was kept in this browser, but was not sent to the lecturer: ${error.message}`)
+      }
+      return true
     } catch (error) {
       setAiError(error.message)
+      return false
     } finally {
       setAiLoading(false)
     }
@@ -182,6 +211,7 @@ export function useLockIn({ storageScope = null } = {}) {
     }
 
     markActive()
+    if (flagType === 'catch_up') return catchUp()
     const id = FLAG_TYPES[flagType] ? flagType : flagTypeId(flagType)
     const type = FLAG_TYPES[id] ?? FLAG_TYPES.confusing
     // The highlighted text is the query. A dragged slide area has no text of its own,
@@ -296,7 +326,6 @@ export function useLockIn({ storageScope = null } = {}) {
     ai,
     aiLoading,
     aiError,
-    ask,
     sessionId,
     sessionActive,
     startSession,

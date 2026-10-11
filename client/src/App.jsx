@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import {
   ChatIcon,
   ChevronDownIcon,
-  CircleCheckIcon,
   FlagIcon,
   HelpIcon,
   LightbulbIcon,
@@ -15,15 +14,15 @@ import {
   XIcon,
   ZapIcon,
 } from './icons'
-import { AI_LABELS, FLAG_TYPES, flagTypeId, useLockIn } from './lockin/useLockIn'
+import { FLAG_TYPES, flagTypeId, useLockIn } from './lockin/useLockIn'
 import SelectionFlagger from './lockin/SelectionFlagger'
 import { NUDGE_MINUTES } from './lockin/useFocusNudge'
 import { SlidePanel } from './slides'
 import './App.css'
 
 const FLAG_ICONS = {
+  catch_up: ZapIcon,
   example: LightbulbIcon,
-  quick_check: CircleCheckIcon,
   why_it_matters: TargetIcon,
   confusing: HelpIcon,
   check_thinking: MessageCheckIcon,
@@ -376,21 +375,13 @@ function Helper({ li, onStartSession, pendingSelection, clearSelection }) {
             {li.aiLoading && <p className="muted">Thinking…</p>}
             {li.ai && !li.aiLoading && (
               <div className="helper__answer">
-                <b>{li.ai.label ?? AI_LABELS[li.ai.kind]} · slide {li.ai.slide + 1}</b>
+                <b>{li.ai.label} · slide {li.ai.slide + 1}</b>
                 {li.ai.text}
               </div>
             )}
             {li.aiError && <p className="helper__error">{li.aiError}</p>}
           </div>
           <div className="helper__actions">
-            <button
-              type="button"
-              disabled={!li.deck || li.aiLoading}
-              onClick={() => li.ask('catchup')}
-              className={`chip ${li.ai?.kind === 'catchup' ? 'is-active' : ''}`}
-            >
-              <ZapIcon /> {AI_LABELS.catchup}
-            </button>
             <FlagButtons
               li={li}
               className="helper__flag-buttons"

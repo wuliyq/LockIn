@@ -4,7 +4,7 @@ import LectureSummary from './LectureSummary.jsx'
 
 const date = (value) => new Date(value).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })
 const time = (value) => new Date(value).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
-const flagLabel = (value) => ({ confusing: 'Confusing', question: 'Confusing', example: 'Give an example', real_world: 'Give an example', worked_example: 'Give an example', quick_check: 'Quick check', why_it_matters: 'Why it matters', check_thinking: 'Check my thinking' })[value] || value
+const flagLabel = (value) => ({ confusing: 'Confusing', question: 'Confusing', example: 'Give an example', real_world: 'Give an example', worked_example: 'Give an example', catch_up: 'Catch me up', why_it_matters: 'Why it matters', check_thinking: 'Check my thinking' })[value] || value
 
 export default function LectureHome({ user, api, onStart, onLogout }) {
   const [lectures, setLectures] = useState([])

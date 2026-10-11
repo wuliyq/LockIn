@@ -17,7 +17,8 @@ export function buildLectureSummary({ notes = {}, slides = [], flags = [], catch
     additionsBySlide.get(slide).push(addition)
   }
 
-  for (const flag of flags) add(slideIndex(flag), flagAddition(flag))
+  // Catch-ups are also saved as flags for the lecturer; the catch-up list already has them.
+  for (const flag of flags) if (flag.flagType !== 'catch_up') add(slideIndex(flag), flagAddition(flag))
   for (const [index, item] of catchUps.entries()) add(slideIndex(item), catchUpAddition(item, index))
 
   const slideNumbers = new Set([
@@ -94,7 +95,7 @@ const FLAG_LABELS = {
   example: 'Give an example',
   real_world: 'Give an example',
   worked_example: 'Give an example',
-  quick_check: 'Quick check',
+  catch_up: 'Catch me up',
   why_it_matters: 'Why it matters',
   check_thinking: 'Check my thinking',
 }
