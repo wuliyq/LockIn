@@ -1,143 +1,139 @@
 # LockIN 🔒
 
-> A study helper for both students and lecturers
+> Lost the thread? Flag it. Let's get you back into the lecture.
 
-LockIN helps students stay in the lecture instead of quietly falling behind. Upload slides, take notes beside them, flag the confusing bit, and get a short AI explanation without leaving the page. Afterward, the lecture is saved as a reviewable summary. Lecturers get a dashboard that turns those anonymous flags into useful feedback.
+LockIN helps students follow along, ask questions, and keep their notes in one place. Students get a little help when something doesn't click. Lecturers get a clearer picture of where the class needs support.
 
-## What you can do
+Built at **HackNC 2026**.
 
-### Student view
+## For students 🎒
 
-- Upload a PDF slide deck and move through it alongside your notes.
-- Highlight part of a slide or select text in your notes, then flag it as:
-  - **Confusing**
-  - **Real-world example**
-  - **Worked example**
-  - **Check my thinking**
-- Ask the focus buddy for a quick example, a check-in, why something matters, or a **Catch me up** summary.
-- Record lecture audio in the background with ElevenLabs transcription.
-- Get gentle focus nudges after a quiet stretch of time.
-- Finish the lecture and come back to a clean summary of your notes, flags, AI answers, and catch-ups.
+- **Slides and notes, side by side.** Upload a PDF, take slide-linked notes, and resize the panels to suit you.
+- **Flag the confusing bit.** Select text in your notes or highlight an area of a slide, then choose:
+  - Confusing
+  - Give an example
+  - Why it matters
+  - Check my thinking
+- **Ask the focus buddy.** Get a short AI explanation using the slide, your notes, and recent transcript context.
+- **Catch me up.** Use the separate catch-up button beside the recording control to summarise the latest recorded part of the lecture.
+- **A gentle nudge.** Turn focus reminders on or off and choose how long to wait between quiet stretches.
+- **Come back later.** Finish a lecture to save its notes, flags, answers, and catch-up summaries for review.
 
-### Lecturer view
+## For lecturers 📊
 
-- Open the lecturer dashboard from the role picker, or directly with `?view=lecturer`.
-- See which kinds of questions students are flagging most often.
-- Explore when flags happened during a lecture and which slides need another look.
-- Load the sample lecture for a fast demo.
-- Ask Gemini for anonymous themes and suggestions for the next lecture.
+- Create classes and share a class code with students.
+- See student sessions linked to your classes.
+- Explore reactions by type, slide, and time in the live dashboard.
+- Review students' flagged questions, AI answers, and catch-up timestamps.
+- Ask Gemini for question themes and suggestions for future lectures.
 
-## Quick start
+The dashboard refreshes roughly every five seconds while its tab is visible. Flags currently send after the AI explanation attempt finishes; catch-up flags send after a summary is generated.
 
-You need a recent Node.js version, plus Gemini API key and Elevenlabs API for live recording.
+## How it fits together
+
+Students join a class when they start a lecture. Each student has their own lecture session, while the lecturer's dashboard collects flags across that class.
+
+Notes are saved locally while writing. Finishing the lecture saves a reviewable snapshot to the backend. Flags and transcript segments are stored during the lecture.
+
+The backend supports three storage modes:
+
+| Storage | Configuration | Survives a restart? |
+| --- | --- | --- |
+| Shared JSON file | Set `SHARED_DATA_DIR` | Yes |
+| In memory | Leave `SHARED_DATA_DIR` blank and set `USE_MEMORY=1` | No |
+| PostgreSQL | Leave `SHARED_DATA_DIR` blank and `USE_MEMORY` unset; configure `DATABASE_URL` | Yes |
+
+File storage takes priority when configured. It writes to `lockin-data.json` inside the chosen folder, using locking and atomic file replacement to protect concurrent updates. Switching storage modes does not copy existing data between them.
+
+## Tech stack
+
+- **React + Vite** — student workspace and lecturer dashboard
+- **Express + Node.js** — API, classes, sessions, and lecture history
+- **Google Gemini** — explanations, catch-up summaries, and lecturer insights
+- **ElevenLabs Scribe** — live speech-to-text
+- **PDF.js** — slide rendering and text extraction
+- **PostgreSQL or shared JSON storage** — saved lecture data
+
+## Getting started
+
+You'll need **Node.js 22.13 or newer**, npm, a **Gemini API key**, and an **ElevenLabs API key**.
 
 ```bash
 git clone https://github.com/wuliyq/LockIn.git
 cd LockIn
 npm install
-cd client && npm install
-cd ..
+npm --prefix client install
 cp .env.example .env
 ```
 
-Open `.env` and add your key:
+Add your keys to the project-root `.env`. This setup uses file storage:
 
 ```env
-GEMINI_API_KEY=your_key_here
-ELEVENLABS_API_KEY=your_key_here
-```
-
-Then use two terminals.
-
-```bash
-# Terminal 1 — from the project root
-npm run dev
-```
-
-```bash
-# Terminal 2 — from the project root
-cd client
-npm run dev
-```
-
-Open the Vite address printed in Terminal 2 (usually `http://localhost:5173`). The frontend proxies `/api` calls to the Express server on port `3001`.
-
-## Share a lecture across laptops without a database
-
-Pick one teammate's laptop as the host. Everyone—including the lecturer—opens that host's **network address**, not their own localhost. Student actions and the dashboard then use the same backend.
-
-On the host, add these lines to the project-root `.env`:
-
-```env
+GEMINI_API_KEY=your_gemini_api_key
+ELEVENLABS_API_KEY=your_elevenlabs_api_key
 SHARED_DATA_DIR=./shared_logs
-MIN_STUDENTS=1
+PORT=3001
 ```
 
-Start the backend from the project root with `npm run dev`. Its startup message should say **file store**. In a second terminal, also from the project root:
+Start the backend from the project root:
 
 ```bash
-npm --prefix client run dev -- --host 0.0.0.0
+npm run dev
 ```
 
-Open the Network URL Vite prints, for example `http://192.168.1.50:5173` (use the host's actual IP and port). Leave `VITE_API_URL` unset on the frontend so `/api` goes through that host's proxy. If it was set to localhost, remove that setting and restart Vite; rebuild if serving a production build.
-
-1. The lecturer creates a class using the existing **Create class** form, then opens its dashboard.
-2. Students open the same host website, enter that class code in the existing field, and start a **new** lecture. A blank code creates independent study, which won't appear in the class dashboard.
-3. Upload the same PDF on each laptop so slide numbers match. Flag a slide or note, and wait for the dashboard's next refresh. Existing AI requests can delay flag submission.
-
-The host creates `shared_logs/lockin-data.json` automatically. It stores classes, student sessions, flags, snapshots and transcript segments, and survives server restarts. This folder is ignored by Git. `SHARED_DATA_DIR` takes precedence over Postgres and `USE_MEMORY`; leaving it blank preserves the existing selection. Switching stores does **not** migrate old data—create a fresh demo class after switching.
-
-Only the backend reads/writes the file. Students do **not** need to mount a shared folder, and the raw file should never be publicly served: it contains private notes/transcripts and optional names. Existing dashboard filtering remains unchanged. `MIN_STUDENTS=1` shows one student's reactions for a demo; `3` enables the existing small-group privacy threshold. The app remains a demo, not a secure authenticated classroom service.
-
-### If you deliberately run multiple backends
-
-Point `SHARED_DATA_DIR` on each backend to the **same actual mounted directory**, not separate folders with the same name. Restrict access to the trusted backend users, rather than granting everyone write access. The file store reloads before every operation, serializes changes with an exclusive directory lock, and replaces the JSON file using a unique temporary file. Shared filesystems must support exclusive directory creation and atomic rename within the directory. Concurrent processes on one filesystem are tested; your SMB configuration still needs a real two-laptop check. Do not use a cloud-synced folder for this.
-
-A crashed process may leave `.lockin-write-lock` behind. If requests report that storage is busy, first stop **all** backends using the folder. Only then remove that empty lock directory and restart. Never delete the data file to fix a lock. A corrupt/unreadable data file causes an error instead of silently resetting the class.
-
-For this hackathon, one host backend is simpler. This adapter rewrites a small JSON snapshot per change; use Postgres for larger classes or production. Browser recording on another laptop's plain HTTP address still needs an HTTPS setup; reactions and notes can use LAN HTTP.
-
-File-store checks, without PostgreSQL or paid AI calls:
+In a second terminal, also from the project root:
 
 ```bash
-node --test server/store/fileStore.test.js
+npm --prefix client run dev
 ```
 
-## Tech we used
+Open the address Vite prints, usually `http://localhost:5173`. Vite forwards `/api` requests to the backend on port `3001`. Keep `VITE_API_URL` unset when using this setup so both student and lecturer views use the same backend.
 
-- **React + Vite** for the interface
-- **Express** for the local API server
-- **Google Gemini** for concise explanations, catch-ups, and lecturer insights
-- **ElevenLabs Scribe** for live speech-to-text
-- **PDF.js** for rendering and reading slide decks
-- **PostgreSQL store groundwork** is included under `server/store/` and `server/db/`
+Microphone access requires browser permission and HTTPS or localhost. Keep API keys on the server; never put them in frontend `VITE_` variables.
 
-## Useful commands
+## A note on privacy
+
+The entry screen is a role picker, not real authentication. Browser identity is kept in a cookie, so using a different browser or hostname can show a different lecture history.
+
+Dashboard charts omit student names and raw question text. The lecturer's separate session-detail view can show entered display names, flagged text, and AI answers; it does not return students' full notes or transcripts. `MIN_STUDENTS` controls the minimum number of distinct students needed for a dashboard group to appear; it defaults to `1`.
+
+Saved storage can contain private notes and transcripts. Keep it out of public folders and version control. Audio is sent to ElevenLabs for transcription, and relevant lecture context is sent to Gemini for AI features. LockIN still needs stronger access controls before use with sensitive student data.
+
+## Development commands
+
+Run these from the project root:
 
 ```bash
 # Build the frontend
-cd client && npm run build
+npm --prefix client run build
 
-# Run the frontend checks
-cd client && npm run lint
+# Check frontend code
+npm --prefix client run lint
 
-# Run server-store tests (requires local PostgreSQL for the test database)
-npm test
+# Test shared-file storage, including concurrent backend processes
+node --test server/store/fileStore.test.js
+
+# Test lecture summaries and the preview adapter
+node --test client/src/account/lectureSummary.test.js client/src/account/previewApi.test.js
 ```
+
+`npm start` runs the API only. It does not serve the built frontend.
 
 ## Project map
 
 ```text
 client/src/
-  account/     entry screen, lecture home, and saved-lecture review
-  lecturer/    lecturer dashboard, charts, and AI suggestions
-  lockin/      notes, flags, focus nudges, and speech-to-text state
-    stt.js      ElevenLabs realtime transcription client
-  slides/      PDF loading, rendering, and slide-text extraction
+  account/     role picker, class management, lecture history, and review
+  lecturer/    dashboard, charts, and lecturer insights
+  lockin/      notes, flags, focus reminders, and transcription
+  slides/      PDF loading, rendering, and text extraction
 server/
-  index.js     Express routes
-  gemini.js    Gemini calls
-  prompts.js   short, lecture-aware AI prompts
+  index.js     API routes
+  gemini.js    Gemini requests
+  prompts.js   lecture-aware AI prompts
+  insights.js  lecturer insight processing
+  store/       PostgreSQL, memory, and file-storage adapters
+  db/          PostgreSQL schema
 ```
 
-Built at HackNC 2026. Have a question, flag it — that is what LockIN is for. ✨
+One confusing moment shouldn't cost you the rest of the lecture. LockIN and keep going. 🌱
